@@ -331,21 +331,26 @@ export const AssessPage: FC = () => {
             </div>
           </div>
 
-          {/* ── 评估方案选择器 ── */}
+          {/* ── 评估方案选择器（醒目卡片面板） ── */}
           <div class="gs-card p-5 mb-6">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="font-semibold text-sm flex items-center text-slate-800">
-                <i class="fas fa-robot mr-2 text-teal-500"></i>
-                当前评估方案
-                <span class="ml-2 text-xs text-gray-400 font-normal">选择不同方案切换智能体策略</span>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold flex items-center text-slate-800">
+                <div class="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center mr-2.5">
+                  <i class="fas fa-layer-group text-teal-600"></i>
+                </div>
+                <div>
+                  <span class="text-base">我的评估方案</span>
+                  <p class="text-xs text-gray-400 font-normal mt-0.5">选择不同筛子方案 · 切换智能体工作流</p>
+                </div>
               </h3>
-              <a href="/agents" class="text-xs font-medium flex items-center" style="color: var(--primary-500)">
-                <i class="fas fa-cog mr-1"></i>管理方案
+              <a href="/agents" class="flex items-center px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-sm text-gray-600">
+                <i class="fas fa-cog mr-1.5 text-teal-500"></i>管理方案
               </a>
             </div>
-            <div id="profile-selector" class="flex flex-wrap gap-2">
-              <div class="text-sm text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>加载评估方案...</div>
+            <div id="profile-selector" class="flex gap-4 overflow-x-auto pb-2" style="-webkit-overflow-scrolling: touch;">
+              <div class="text-sm text-gray-400 py-6 text-center w-full"><i class="fas fa-spinner fa-spin mr-1"></i>加载评估方案...</div>
             </div>
+            <p class="text-[11px] text-gray-400 mt-2"><i class="fas fa-info-circle mr-1"></i>点击方案卡片切换 · 当前方案下的智能体将自动加载到评估流程</p>
           </div>
 
           {/* ── 步骤指示器 ── */}

@@ -1,14 +1,61 @@
 // ==========================================================
-// 智能体管理中心 — agents-manage.js
+// 智能体管理中心 — agents-manage.js (v2)
+// 
+// 核心改进：
+//   1. 统一弹窗管理器 — 打开新弹窗前自动关闭所有已开弹窗
+//   2. 方案总览面板 — 首页即可看到所有方案的状态和快速切换
+//   3. 更清晰的导航流程
 // ==========================================================
 
 let allProfiles = [];
 let selectedProfileId = null;
-let currentAgentTab = 'outer'; // 'outer' | 'inner'
-let editingAgentId = null;     // null=新建, string=编辑
+let currentAgentTab = 'outer';
+let editingAgentId = null;
 let editingIsNew = false;
 
 const PRIMARY = '#5DC4B3';
+
+// ==========================================================
+// 弹窗管理器 — 严格分层，不会叠加，取消永远可用
+//
+// 规则：
+//   1. 同一时刻只允许一个弹窗打开
+//   2. 打开新弹窗前必须先关闭旧弹窗
+//   3. 点击遮罩、取消按钮、ESC 均可关闭
+//   4. profile-modal 的 z-index 始终高于 edit-agent-modal
+// ==========================================================
+const MODAL_IDS = ['edit-agent-modal', 'profile-modal'];
+let _activeModalId = null;
+
+function closeAllModals() {
+  MODAL_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  _activeModalId = null;
+  document.body.style.overflow = '';
+}
+
+function openModal(modalId) {
+  // 先关闭全部
+  closeAllModals();
+  // 再打开目标
+  const el = document.getElementById(modalId);
+  if (el) {
+    el.classList.remove('hidden');
+    _activeModalId = modalId;
+    document.body.style.overflow = 'hidden'; // 防止背景滚动
+  }
+}
+
+function closeActiveModal() {
+  if (_activeModalId) {
+    const el = document.getElementById(_activeModalId);
+    if (el) el.classList.add('hidden');
+    _activeModalId = null;
+    document.body.style.overflow = '';
+  }
+}
 
 // ==========================================================
 // 登录 & 用户
@@ -34,6 +81,7 @@ function handleAgentsLogout() {
 // ==========================================================
 function showToast(msg, type = 'info') {
   const container = document.getElementById('agents-toast-container');
+  if (!container) return;
   const colors = {
     success: 'background:#d1fae5; color:#065f46; border:1px solid #6ee7b7',
     error:   'background:#fee2e2; color:#991b1b; border:1px solid #fca5a5',
@@ -68,7 +116,7 @@ async function loadProfiles() {
     allProfiles = data.data || [];
     renderProfilesGrid();
     updateStats();
-    // 如果有选中的，保持展开
+    // 如果有选中的方案，保持展开
     if (selectedProfileId) {
       const exists = allProfiles.find(p => p.id === selectedProfileId);
       if (exists) selectProfile(selectedProfileId);
@@ -81,29 +129,28 @@ async function loadProfiles() {
 }
 
 function updateStats() {
-  document.getElementById('stat-profiles').textContent = allProfiles.length;
+  const el = (id) => document.getElementById(id);
+  el('stat-profiles').textContent = allProfiles.length;
   const def = allProfiles.find(p => p.is_default);
-  document.getElementById('stat-default').textContent = def ? def.name : '未设置';
-  // 当前选中方案的统计
+  el('stat-default').textContent = def ? def.name : '未设置';
+
   if (selectedProfileId) {
     const profile = allProfiles.find(p => p.id === selectedProfileId);
     if (profile) {
-      const outer = profile.agents.filter(a => a.ring_type === 'outer' && a.enabled !== false).length;
-      const inner = profile.agents.filter(a => a.ring_type === 'inner' && a.enabled !== false).length;
-      document.getElementById('stat-outer').textContent = outer;
-      document.getElementById('stat-inner').textContent = inner;
+      el('stat-outer').textContent = profile.agents.filter(a => a.ring_type === 'outer' && a.enabled !== false).length;
+      el('stat-inner').textContent = profile.agents.filter(a => a.ring_type === 'inner' && a.enabled !== false).length;
     }
   } else {
-    const def = allProfiles.find(p => p.is_default) || allProfiles[0];
-    if (def) {
-      document.getElementById('stat-outer').textContent = def.agents.filter(a => a.ring_type === 'outer').length;
-      document.getElementById('stat-inner').textContent = def.agents.filter(a => a.ring_type === 'inner').length;
+    const d = allProfiles.find(p => p.is_default) || allProfiles[0];
+    if (d) {
+      el('stat-outer').textContent = d.agents.filter(a => a.ring_type === 'outer').length;
+      el('stat-inner').textContent = d.agents.filter(a => a.ring_type === 'inner').length;
     }
   }
 }
 
 // ==========================================================
-// 渲染方案卡片
+// 渲染方案卡片网格
 // ==========================================================
 function renderProfilesGrid() {
   const grid = document.getElementById('profiles-grid');
@@ -111,12 +158,13 @@ function renderProfilesGrid() {
     grid.innerHTML = '<div class="text-center py-12 text-gray-400 col-span-3"><i class="fas fa-inbox text-3xl mb-3"></i><p>暂无评估方案</p><p class="text-xs mt-1">点击"新建方案"开始创建</p></div>';
     return;
   }
-  grid.innerHTML = allProfiles.map(p => {
+
+  grid.innerHTML = allProfiles.map((p, idx) => {
     const outer = p.agents.filter(a => a.ring_type === 'outer').length;
     const inner = p.agents.filter(a => a.ring_type === 'inner').length;
     const enabled = p.agents.filter(a => a.enabled !== false).length;
     const isSelected = selectedProfileId === p.id;
-    return '<div class="gs-card profile-card p-5 ' + (isSelected ? 'selected' : '') + '" onclick="selectProfile(\'' + p.id + '\')">' +
+    return '<div class="gs-card profile-card p-5 ' + (isSelected ? 'selected' : '') + '" onclick="selectProfile(\'' + p.id + '\')" data-profile-id="' + p.id + '">' +
       (p.is_default ? '<div class="default-badge"><i class="fas fa-star mr-1"></i>默认</div>' : '') +
       '<div class="flex items-center space-x-3 mb-3">' +
       '<div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:' + (p.icon_color || PRIMARY) + '20">' +
@@ -129,7 +177,13 @@ function renderProfilesGrid() {
       '<div class="bg-emerald-50 rounded-lg py-2"><p class="text-lg font-bold text-emerald-600">' + enabled + '</p><p class="text-[10px] text-gray-500">启用</p></div></div>' +
       '<div class="mt-3 pt-3 border-t flex items-center justify-between text-xs text-gray-400">' +
       '<span>更新: ' + formatDate(p.updated_at) + '</span>' +
-      '<span class="text-teal-500 font-medium"><i class="fas fa-chevron-right mr-1"></i>查看详情</span></div></div>';
+      // 快捷操作按钮
+      '<div class="flex items-center space-x-2" onclick="event.stopPropagation()">' +
+      (!p.is_default ? '<button onclick="quickSetDefault(\'' + p.id + '\')" class="text-yellow-500 hover:text-yellow-600 transition" title="设为默认"><i class="fas fa-star text-xs"></i></button>' : '') +
+      '<button onclick="quickClone(\'' + p.id + '\')" class="text-blue-400 hover:text-blue-500 transition" title="克隆"><i class="fas fa-copy text-xs"></i></button>' +
+      (!p.is_default ? '<button onclick="quickDelete(\'' + p.id + '\')" class="text-red-300 hover:text-red-500 transition" title="删除"><i class="fas fa-trash text-xs"></i></button>' : '') +
+      '<span class="text-teal-500 font-medium cursor-pointer"><i class="fas fa-chevron-right mr-1"></i>详情</span>' +
+      '</div></div></div>';
   }).join('');
 }
 
@@ -137,6 +191,42 @@ function formatDate(dateStr) {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// ==========================================================
+// 方案卡片上的快捷操作（不用展开详情）
+// ==========================================================
+async function quickSetDefault(profileId) {
+  try {
+    await apiCall('/api/agents/profiles/' + profileId + '/default', { method: 'POST' });
+    showToast('已设为默认方案', 'success');
+    await loadProfiles();
+    if (selectedProfileId === profileId) selectProfile(profileId);
+  } catch(e) { showToast('操作失败: ' + e.message, 'error'); }
+}
+
+async function quickClone(profileId) {
+  try {
+    const resp = await apiCall('/api/agents/profiles/' + profileId + '/clone', { method: 'POST' });
+    showToast('方案已克隆', 'success');
+    await loadProfiles();
+    if (resp.data?.id) selectProfile(resp.data.id);
+  } catch(e) { showToast('克隆失败: ' + e.message, 'error'); }
+}
+
+async function quickDelete(profileId) {
+  const profile = allProfiles.find(p => p.id === profileId);
+  if (profile?.is_default) { showToast('默认方案不能删除', 'error'); return; }
+  if (!confirm('确认删除方案"' + (profile?.name || '') + '"？此操作不可恢复。')) return;
+  try {
+    await apiCall('/api/agents/profiles/' + profileId, { method: 'DELETE' });
+    if (selectedProfileId === profileId) {
+      selectedProfileId = null;
+      document.getElementById('profile-detail-section').classList.add('hidden');
+    }
+    showToast('方案已删除', 'success');
+    await loadProfiles();
+  } catch(e) { showToast('删除失败: ' + e.message, 'error'); }
 }
 
 // ==========================================================
@@ -148,10 +238,9 @@ function selectProfile(profileId) {
   if (!profile) return;
 
   // 更新卡片高亮
-  document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
-  const cards = document.querySelectorAll('.profile-card');
-  const idx = allProfiles.findIndex(p => p.id === profileId);
-  if (cards[idx]) cards[idx].classList.add('selected');
+  document.querySelectorAll('.profile-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.profileId === profileId);
+  });
 
   // 展示详情区
   document.getElementById('profile-detail-section').classList.remove('hidden');
@@ -170,16 +259,20 @@ function selectProfile(profileId) {
   }
 
   // Tab 计数
-  const outerCount = profile.agents.filter(a => a.ring_type === 'outer').length;
-  const innerCount = profile.agents.filter(a => a.ring_type === 'inner').length;
-  document.getElementById('tab-outer-count').textContent = outerCount;
-  document.getElementById('tab-inner-count').textContent = innerCount;
+  document.getElementById('tab-outer-count').textContent = profile.agents.filter(a => a.ring_type === 'outer').length;
+  document.getElementById('tab-inner-count').textContent = profile.agents.filter(a => a.ring_type === 'inner').length;
 
   updateStats();
   renderAgentsList();
 
-  // 平滑滚动到详情区
   setTimeout(() => document.getElementById('profile-detail-section').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function deselectProfile() {
+  selectedProfileId = null;
+  document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('profile-detail-section').classList.add('hidden');
+  updateStats();
 }
 
 // ==========================================================
@@ -238,7 +331,6 @@ async function toggleAgent(agentId, enabled) {
     await apiCall('/api/agents/profiles/' + selectedProfileId + '/agents/' + agentId, {
       method: 'PATCH', body: JSON.stringify({ enabled })
     });
-    // 本地更新
     const profile = allProfiles.find(p => p.id === selectedProfileId);
     const agent = profile?.agents.find(a => a.id === agentId);
     if (agent) agent.enabled = enabled;
@@ -260,7 +352,7 @@ async function removeAgent(agentId) {
 }
 
 // ==========================================================
-// 编辑智能体弹窗
+// 编辑智能体弹窗（使用统一弹窗管理器）
 // ==========================================================
 function openEditAgentModal(agentId) {
   editingIsNew = !agentId;
@@ -294,12 +386,16 @@ function openEditAgentModal(agentId) {
     document.getElementById('edit-agent-desc').value = '';
     document.getElementById('edit-agent-prompt').value = '';
   }
-  document.getElementById('edit-agent-modal').classList.remove('hidden');
+  // 使用统一管理器打开（先关闭其他弹窗）
+  openModal('edit-agent-modal');
 }
 
 function openAddAgentModal() { openEditAgentModal(null); }
 
-function closeEditAgentModal() { document.getElementById('edit-agent-modal').classList.add('hidden'); }
+function closeEditAgentModal() { 
+  document.getElementById('edit-agent-modal').classList.add('hidden');
+  if (_activeModalId === 'edit-agent-modal') { _activeModalId = null; document.body.style.overflow = ''; }
+}
 
 async function saveAgent() {
   const name = document.getElementById('edit-agent-name').value.trim();
@@ -339,16 +435,21 @@ async function saveAgent() {
 }
 
 // ==========================================================
-// 方案操作
+// 方案弹窗操作（使用统一弹窗管理器）
 // ==========================================================
 function openCreateProfileModal() {
   document.getElementById('profile-modal-title').innerHTML = '<i class="fas fa-plus-circle mr-2 text-teal-500"></i>新建评估方案';
   document.getElementById('profile-name').value = '';
   document.getElementById('profile-desc-input').value = '';
   document.getElementById('profile-template').value = 'default-profile';
-  document.getElementById('profile-modal').classList.remove('hidden');
+  // 使用统一管理器打开（先关闭其他弹窗）
+  openModal('profile-modal');
 }
-function closeProfileModal() { document.getElementById('profile-modal').classList.add('hidden'); }
+
+function closeProfileModal() { 
+  document.getElementById('profile-modal').classList.add('hidden');
+  if (_activeModalId === 'profile-modal') { _activeModalId = null; document.body.style.overflow = ''; }
+}
 
 async function createProfile() {
   const name = document.getElementById('profile-name').value.trim();
@@ -362,7 +463,7 @@ async function createProfile() {
       body: JSON.stringify({ name, description: desc, template_id: template })
     });
     closeProfileModal();
-    showToast('方案创建成功', 'success');
+    showToast('方案创建成功！可在方案列表中查看', 'success');
     await loadProfiles();
     if (resp.data?.id) selectProfile(resp.data.id);
   } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
@@ -380,7 +481,6 @@ async function setAsDefault() {
 
 async function cloneProfile() {
   if (!selectedProfileId) return;
-  const profile = allProfiles.find(p => p.id === selectedProfileId);
   try {
     const resp = await apiCall('/api/agents/profiles/' + selectedProfileId + '/clone', { method: 'POST' });
     showToast('方案已克隆', 'success');
@@ -404,6 +504,13 @@ async function deleteProfile() {
 }
 
 // ==========================================================
+// 去评估页（带方案参数）
+// ==========================================================
+function goToAssessWithProfile(profileId) {
+  window.location.href = '/assess?profile=' + encodeURIComponent(profileId || '');
+}
+
+// ==========================================================
 // 初始化
 // ==========================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -412,7 +519,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProfiles();
 });
 
-// ESC 关闭弹窗
+// ESC 关闭当前活动弹窗
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeEditAgentModal(); closeProfileModal(); }
+  if (e.key === 'Escape') {
+    if (_activeModalId) closeActiveModal();
+  }
 });

@@ -79,8 +79,10 @@ export const AgentsPage: FC = () => {
         .toggle-switch input:checked + .toggle-slider { background: var(--primary-500); }
         .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
 
-        /* Modal */
-        .modal-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+        /* Modal — 分级 z-index 防止叠加 */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+        .modal-overlay.z-modal-1 { z-index: 50; }
+        .modal-overlay.z-modal-2 { z-index: 60; }
         .modal-card { background: white; border-radius: 1rem; box-shadow: 0 25px 60px rgba(0,0,0,0.2); max-height: 85vh; display: flex; flex-direction: column; }
 
         #agents-toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
@@ -244,8 +246,8 @@ export const AgentsPage: FC = () => {
         </div>
       </div>
 
-      {/* ── 编辑智能体弹窗 ── */}
-      <div id="edit-agent-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeEditAgentModal()">
+      {/* ── 编辑智能体弹窗 (z-50) ── */}
+      <div id="edit-agent-modal" class="hidden modal-overlay z-modal-1" onclick="if(event.target===this)closeEditAgentModal()">
         <div class="modal-card w-full max-w-2xl mx-4">
           <div class="p-5 border-b flex items-center justify-between">
             <h3 id="edit-agent-title" class="font-bold text-gray-800"><i class="fas fa-edit mr-2 text-teal-500"></i>编辑智能体</h3>
@@ -315,8 +317,8 @@ export const AgentsPage: FC = () => {
         </div>
       </div>
 
-      {/* ── 新建/编辑方案弹窗 ── */}
-      <div id="profile-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeProfileModal()">
+      {/* ── 新建/编辑方案弹窗 (z-60, 始终在编辑智能体弹窗之上) ── */}
+      <div id="profile-modal" class="hidden modal-overlay z-modal-2" onclick="if(event.target===this)closeProfileModal()">
         <div class="modal-card w-full max-w-md mx-4">
           <div class="p-5 border-b flex items-center justify-between">
             <h3 id="profile-modal-title" class="font-bold text-gray-800"><i class="fas fa-plus-circle mr-2 text-teal-500"></i>新建评估方案</h3>

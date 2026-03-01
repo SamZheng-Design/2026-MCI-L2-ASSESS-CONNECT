@@ -392,17 +392,36 @@ async function loadProfiles() {
 function renderProfileSelector() {
   const container = document.getElementById('profile-selector');
   if (!container || !allProfiles.length) return;
+
   container.innerHTML = allProfiles.map(p => {
     const isActive = p.id === activeProfileId;
     const outer = p.agents.filter(a => a.ring_type === 'outer').length;
     const inner = p.agents.filter(a => a.ring_type === 'inner').length;
-    return '<button onclick="switchProfile(\'' + p.id + '\')" class="flex items-center space-x-2 px-3 py-2 rounded-lg border text-left transition-all text-sm ' +
-      (isActive ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-200' : 'border-gray-200 bg-white hover:bg-gray-50') + '">' +
-      '<div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + (p.icon_color || '#5DC4B3') + '20">' +
-      '<i class="' + (p.icon || 'fas fa-robot') + ' text-sm" style="color:' + (p.icon_color || '#5DC4B3') + '"></i></div>' +
-      '<div class="min-w-0"><div class="font-medium text-gray-800 truncate">' + p.name +
-      (p.is_default ? ' <span class="text-[10px] text-teal-600 bg-teal-100 px-1 rounded">默认</span>' : '') +
-      '</div><div class="text-[10px] text-gray-400">外环 ' + outer + ' · 中环 ' + inner + '</div></div></button>';
+    const enabled = p.agents.filter(a => a.enabled !== false).length;
+
+    return '<div onclick="switchProfile(\'' + p.id + '\')" ' +
+      'class="relative flex-shrink-0 w-56 rounded-xl p-4 border-2 cursor-pointer transition-all duration-200 ' +
+      (isActive
+        ? 'border-teal-500 bg-teal-50 shadow-md shadow-teal-100 ring-2 ring-teal-200'
+        : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm') + '">' +
+      // 默认角标
+      (p.is_default ? '<div class="absolute -top-1 -right-1 bg-teal-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg rounded-tr-lg"><i class="fas fa-star mr-0.5"></i>默认</div>' : '') +
+      // 选中勾
+      (isActive ? '<div class="absolute top-2 right-2 w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center"><i class="fas fa-check text-white text-xs"></i></div>' : '') +
+      // 图标和名称
+      '<div class="flex items-center space-x-2.5 mb-3">' +
+      '<div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:' + (p.icon_color || '#5DC4B3') + '20">' +
+      '<i class="' + (p.icon || 'fas fa-robot') + ' text-lg" style="color:' + (p.icon_color || '#5DC4B3') + '"></i></div>' +
+      '<div class="min-w-0">' +
+      '<h4 class="font-semibold text-sm text-gray-800 truncate">' + p.name + '</h4>' +
+      '<p class="text-[10px] text-gray-400 line-clamp-1">' + (p.description || '暂无描述') + '</p>' +
+      '</div></div>' +
+      // 统计数据
+      '<div class="grid grid-cols-3 gap-1.5 text-center">' +
+      '<div class="rounded-lg py-1.5" style="background:#FEF2F2"><p class="text-sm font-bold text-red-600">' + outer + '</p><p class="text-[9px] text-gray-500">外环</p></div>' +
+      '<div class="rounded-lg py-1.5" style="background:#EFF6FF"><p class="text-sm font-bold text-blue-600">' + inner + '</p><p class="text-[9px] text-gray-500">中环</p></div>' +
+      '<div class="rounded-lg py-1.5" style="background:#F0FDF4"><p class="text-sm font-bold text-emerald-600">' + enabled + '</p><p class="text-[9px] text-gray-500">启用</p></div>' +
+      '</div></div>';
   }).join('');
 }
 
