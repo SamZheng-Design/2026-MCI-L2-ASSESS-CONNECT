@@ -166,6 +166,20 @@ app.post('/api/agents/profiles/:id/default', (c) => {
   return c.json({ success: true, data: profile })
 })
 
+// 更新方案（名称、描述等）
+app.put('/api/agents/profiles/:id', async (c) => {
+  const id = c.req.param('id')
+  const profile = userProfiles.find(p => p.id === id)
+  if (!profile) return c.json({ success: false, error: '方案不存在' }, 404)
+  const body = await c.req.json()
+  if (body.name !== undefined) profile.name = body.name
+  if (body.description !== undefined) profile.description = body.description
+  if (body.icon !== undefined) profile.icon = body.icon
+  if (body.icon_color !== undefined) profile.icon_color = body.icon_color
+  profile.updated_at = new Date().toISOString()
+  return c.json({ success: true, data: profile })
+})
+
 // 克隆方案
 app.post('/api/agents/profiles/:id/clone', (c) => {
   const id = c.req.param('id')

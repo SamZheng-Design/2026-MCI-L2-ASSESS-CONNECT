@@ -200,6 +200,9 @@ export const AgentsPage: FC = () => {
               <div id="profile-detail-header" class="p-5 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center space-x-3">
+                    <button onclick="deselectProfile()" class="w-8 h-8 rounded-lg bg-white/80 border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white transition flex-shrink-0" title="返回方案列表">
+                      <i class="fas fa-arrow-left text-sm"></i>
+                    </button>
                     <div id="detail-icon" class="w-12 h-12 rounded-xl flex items-center justify-center"></div>
                     <div>
                       <h3 id="detail-name" class="text-lg font-bold text-gray-800"></h3>
@@ -207,6 +210,9 @@ export const AgentsPage: FC = () => {
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
+                    <button onclick="openEditProfileModal()" class="btn-secondary text-xs">
+                      <i class="fas fa-pen"></i>编辑方案
+                    </button>
                     <button onclick="setAsDefault()" id="btn-set-default" class="btn-secondary text-xs">
                       <i class="fas fa-star"></i>设为默认
                     </button>
@@ -317,12 +323,12 @@ export const AgentsPage: FC = () => {
         </div>
       </div>
 
-      {/* ── 新建/编辑方案弹窗 (z-60, 始终在编辑智能体弹窗之上) ── */}
+      {/* ── 新建方案弹窗 (z-60) ── */}
       <div id="profile-modal" class="hidden modal-overlay z-modal-2" onclick="if(event.target===this)closeProfileModal()">
         <div class="modal-card w-full max-w-md mx-4">
           <div class="p-5 border-b flex items-center justify-between">
             <h3 id="profile-modal-title" class="font-bold text-gray-800"><i class="fas fa-plus-circle mr-2 text-teal-500"></i>新建评估方案</h3>
-            <button onclick="closeProfileModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            <button onclick="closeProfileModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
           </div>
           <div class="p-5 space-y-4">
             <div>
@@ -346,6 +352,38 @@ export const AgentsPage: FC = () => {
           <div class="p-5 border-t flex justify-end space-x-3">
             <button onclick="closeProfileModal()" class="btn-secondary">取消</button>
             <button onclick="createProfile()" class="btn-primary"><i class="fas fa-check"></i>创建</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 编辑方案弹窗 (z-60) ── */}
+      <div id="edit-profile-modal" class="hidden modal-overlay z-modal-2" onclick="if(event.target===this)closeEditProfileModal()">
+        <div class="modal-card w-full max-w-md mx-4">
+          <div class="p-5 border-b flex items-center justify-between">
+            <h3 class="font-bold text-gray-800"><i class="fas fa-edit mr-2 text-teal-500"></i>编辑方案信息</h3>
+            <button onclick="closeEditProfileModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">方案名称 <span class="text-red-400">*</span></label>
+              <input id="edit-profile-name" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
+              <textarea id="edit-profile-desc" rows={3} placeholder="方案适用场景说明" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">图标 (FontAwesome)</label>
+              <input id="edit-profile-icon" type="text" placeholder="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>
+              <input id="edit-profile-iconcolor" type="color" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer" />
+            </div>
+          </div>
+          <div class="p-5 border-t flex justify-end space-x-3">
+            <button onclick="closeEditProfileModal()" class="btn-secondary">取消</button>
+            <button onclick="saveProfileEdit()" class="btn-primary"><i class="fas fa-save"></i>保存</button>
           </div>
         </div>
       </div>
