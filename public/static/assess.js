@@ -15,9 +15,11 @@ let filteredInnerAgents = [];
 let currentFilter = 'all';
 let uploadedFiles = [];
 let parsedFileContents = [];
+let allProfiles = [];
+let activeProfileId = null; // 当前选中的评估方案ID
 
-// API 路径前缀（代理到 dgt 平台）
-const API_BASE = '/api/dgt';
+// API 路径前缀（使用本地 API）
+const API_BASE = '/api';
 
 // v33 主色
 const PRIMARY_COLOR = '#5DC4B3';
@@ -339,6 +341,7 @@ function selectDeal(dealId) {
   currentDealIndustry = selectedDeal.industry;
   renderDealsList();
   updateDealInfo();
+  // 重新加载智能体（按新赛道过滤内环）
   loadEvaluationAgents();
   if (!isRunning) resetEvaluationState();
   showToast('已选择: ' + selectedDeal.company_name, 'success');
@@ -372,21 +375,73 @@ function updateDealInfo() {
 // ==========================================================
 // 智能体管理
 // ==========================================================
+async function loadProfiles() {
+  try {
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    // 如果有之前选中的方案，保持；否则用默认方案
+    if (!activeProfileId) {
+      const def = allProfiles.find(p => p.is_default);
+      activeProfileId = def ? def.id : (allProfiles[0]?.id || null);
+    }
+    renderProfileSelector();
+    loadEvaluationAgents();
+  } catch(e) { console.error('加载方案列表失败:', e); loadEvaluationAgents(); }
+}
+
+function renderProfileSelector() {
+  const container = document.getElementById('profile-selector');
+  if (!container || !allProfiles.length) return;
+  container.innerHTML = allProfiles.map(p => {
+    const isActive = p.id === activeProfileId;
+    const outer = p.agents.filter(a => a.ring_type === 'outer').length;
+    const inner = p.agents.filter(a => a.ring_type === 'inner').length;
+    return '<button onclick="switchProfile(\'' + p.id + '\')" class="flex items-center space-x-2 px-3 py-2 rounded-lg border text-left transition-all text-sm ' +
+      (isActive ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-200' : 'border-gray-200 bg-white hover:bg-gray-50') + '">' +
+      '<div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + (p.icon_color || '#5DC4B3') + '20">' +
+      '<i class="' + (p.icon || 'fas fa-robot') + ' text-sm" style="color:' + (p.icon_color || '#5DC4B3') + '"></i></div>' +
+      '<div class="min-w-0"><div class="font-medium text-gray-800 truncate">' + p.name +
+      (p.is_default ? ' <span class="text-[10px] text-teal-600 bg-teal-100 px-1 rounded">默认</span>' : '') +
+      '</div><div class="text-[10px] text-gray-400">外环 ' + outer + ' · 中环 ' + inner + '</div></div></button>';
+  }).join('');
+}
+
+function switchProfile(profileId) {
+  activeProfileId = profileId;
+  renderProfileSelector();
+  loadEvaluationAgents();
+  showToast('已切换方案', 'success');
+}
+
 async function loadEvaluationAgents() {
   try {
-    const data = await apiCall(API_BASE + '/agents');
+    // 如果有选中的方案，从该方案加载；否则用默认 /api/agents
+    const url = activeProfileId ? '/api/agents/by-profile/' + activeProfileId : '/api/agents';
+    const data = await apiCall(url);
     evaluationAgents = data.data || data || [];
-    filteredOuterAgents = evaluationAgents.filter(a => a.ring_type === 'outer');
+    filteredOuterAgents = evaluationAgents.filter(a => a.ring_type === 'outer' && a.enabled !== false);
+    // 内环：如果已选标的则按赛道过滤，否则显示所有
+    const industry = currentDealIndustry || 'all';
     filteredInnerAgents = evaluationAgents.filter(a =>
       a.ring_type === 'inner' &&
+      a.enabled !== false &&
       a.id !== 'comprehensive-scoring-agent' &&
-      (a.industry === currentDealIndustry || a.industry === 'all')
+      (industry === 'all' || a.industry === industry || a.industry === 'all')
     );
     // 统计
     const agentCountEl = document.getElementById('stat-agent-count');
-    if (agentCountEl) agentCountEl.textContent = evaluationAgents.length;
+    if (agentCountEl) agentCountEl.textContent = evaluationAgents.filter(a => a.enabled !== false).length;
     renderAgentCards();
     updateInnerAgentCount();
+    // 激活外环和中环区域的基础外观（不再强制 opacity-40）
+    const outerSection = document.getElementById('outer-section');
+    const innerSection = document.getElementById('inner-section');
+    if (outerSection && filteredOuterAgents.length > 0) {
+      outerSection.classList.remove('opacity-40');
+    }
+    if (innerSection && filteredInnerAgents.length > 0) {
+      innerSection.classList.remove('opacity-40');
+    }
   } catch(e) { console.error('加载智能体失败:', e); }
 }
 function updateInnerAgentCount() {
@@ -981,6 +1036,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!user) return;
   
   setTimeout(loadAllDeals, 300);
-  setTimeout(loadEvaluationAgents, 500);
+  setTimeout(loadProfiles, 500);  // 加载方案列表（含智能体），不再依赖选标的
   setTimeout(checkUrlParams, 1000);
 });

@@ -124,6 +124,9 @@ export const AssessPage: FC = () => {
             </div>
           </div>
           <div class="flex items-center space-x-3">
+            <a href="/agents" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
+              <i class="fas fa-robot mr-1.5"></i>智能体管理
+            </a>
             <button onclick="toggleAllDetails()" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
               <i class="fas fa-eye mr-1.5"></i><span id="toggle-all-text">展开全部</span>
             </button>
@@ -325,6 +328,23 @@ export const AssessPage: FC = () => {
                 class="hidden mt-4 w-full py-2.5 btn-primary justify-center shadow-md">
                 <i class="fas fa-plus-circle"></i>创建标的并开始评估
               </button>
+            </div>
+          </div>
+
+          {/* ── 评估方案选择器 ── */}
+          <div class="gs-card p-5 mb-6">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold text-sm flex items-center text-slate-800">
+                <i class="fas fa-robot mr-2 text-teal-500"></i>
+                当前评估方案
+                <span class="ml-2 text-xs text-gray-400 font-normal">选择不同方案切换智能体策略</span>
+              </h3>
+              <a href="/agents" class="text-xs font-medium flex items-center" style="color: var(--primary-500)">
+                <i class="fas fa-cog mr-1"></i>管理方案
+              </a>
+            </div>
+            <div id="profile-selector" class="flex flex-wrap gap-2">
+              <div class="text-sm text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>加载评估方案...</div>
             </div>
           </div>
 
