@@ -433,14 +433,21 @@ async function loadEvaluationAgents() {
     if (agentCountEl) agentCountEl.textContent = evaluationAgents.filter(a => a.enabled !== false).length;
     renderAgentCards();
     updateInnerAgentCount();
-    // 激活外环和中环区域的基础外观（不再强制 opacity-40）
+    // 激活外环和中环区域的基础外观
     const outerSection = document.getElementById('outer-section');
     const innerSection = document.getElementById('inner-section');
     if (outerSection && filteredOuterAgents.length > 0) {
-      outerSection.classList.remove('opacity-40');
+      outerSection.classList.remove('opacity-40', 'border-dashed');
+      outerSection.classList.add('border-solid');
     }
     if (innerSection && filteredInnerAgents.length > 0) {
-      innerSection.classList.remove('opacity-40');
+      innerSection.classList.remove('opacity-40', 'border-dashed');
+      innerSection.classList.add('border-solid');
+    }
+    // 综合评分区域保持等待状态直到评估完成
+    const finalSection = document.getElementById('final-section');
+    if (finalSection && !isRunning) {
+      // 保持半透明，等评估时再激活
     }
   } catch(e) { console.error('加载智能体失败:', e); }
 }
@@ -682,17 +689,36 @@ function resetEvaluationState() {
     if (el) {
       el.classList.add('opacity-50');
       const d = el.querySelector('div');
-      if (d) { d.className='w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold'; d.textContent=i; }
+      if (d) { d.className='w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold'; d.textContent=i; d.style.background=''; }
     }
   }
+  // 重置评估相关样式（去除边框高亮等）
   ['outer-section','inner-section','final-section'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.classList.add('opacity-40','border-dashed','border-gray-200');
       el.classList.remove('border-solid','border-red-300','border-green-300','ring-2','ring-red-100','ring-green-100','ring-emerald-100','border-red-500');
       el.style.borderColor = '';
     }
   });
+  // 外环/中环如果有智能体加载过，保持可见但显示等待状态；综合评分区域保持灰化
+  const outerSection = document.getElementById('outer-section');
+  const innerSection = document.getElementById('inner-section');
+  const finalSection = document.getElementById('final-section');
+  if (outerSection && filteredOuterAgents.length > 0) {
+    outerSection.classList.remove('opacity-40','border-dashed');
+    outerSection.classList.add('border-solid','border-gray-200');
+  } else if (outerSection) {
+    outerSection.classList.add('opacity-40','border-dashed','border-gray-200');
+  }
+  if (innerSection && filteredInnerAgents.length > 0) {
+    innerSection.classList.remove('opacity-40','border-dashed');
+    innerSection.classList.add('border-solid','border-gray-200');
+  } else if (innerSection) {
+    innerSection.classList.add('opacity-40','border-dashed','border-gray-200');
+  }
+  if (finalSection) {
+    finalSection.classList.add('opacity-40','border-dashed','border-gray-200');
+  }
   document.getElementById('outer-status').innerHTML = '<i class="fas fa-clock mr-1"></i>等待开始';
   document.getElementById('outer-status').className = 'text-sm text-gray-500 flex items-center';
   document.getElementById('inner-status').innerHTML = '<i class="fas fa-lock mr-1"></i>等待外环漏斗体系完成';

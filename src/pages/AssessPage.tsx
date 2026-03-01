@@ -543,7 +543,7 @@ export const AssessPage: FC = () => {
       </div>
 
       {/* ── 弹窗：推理过程详情 ── */}
-      <div id="reasoning-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)">
+      <div id="reasoning-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)" onclick="if(event.target===this)closeReasoningPopup()">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
           <div class="p-4 border-b flex items-center justify-between">
             <h3 id="popup-title" class="font-semibold text-gray-800"></h3>
@@ -554,7 +554,7 @@ export const AssessPage: FC = () => {
       </div>
 
       {/* ── 弹窗：完整报告 ── */}
-      <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)">
+      <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)" onclick="if(event.target===this)closeDetailModal()">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
           <div class="p-4 border-b flex items-center justify-between">
             <h3 id="modal-title" class="font-semibold text-gray-800"></h3>
@@ -565,7 +565,7 @@ export const AssessPage: FC = () => {
       </div>
 
       {/* ── 弹窗：改进建议详情 ── */}
-      <div id="improvement-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)">
+      <div id="improvement-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)" onclick="if(event.target===this)closeImprovementPopup()">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[70vh] flex flex-col">
           <div id="improvement-popup-header" class="p-4 border-b flex items-center justify-between">
             <h3 id="improvement-popup-title" class="font-semibold"></h3>

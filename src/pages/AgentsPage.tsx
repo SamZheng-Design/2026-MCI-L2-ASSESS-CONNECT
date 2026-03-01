@@ -318,8 +318,9 @@ export const AgentsPage: FC = () => {
       {/* ── 新建/编辑方案弹窗 ── */}
       <div id="profile-modal" class="hidden modal-overlay" onclick="if(event.target===this)closeProfileModal()">
         <div class="modal-card w-full max-w-md mx-4">
-          <div class="p-5 border-b">
+          <div class="p-5 border-b flex items-center justify-between">
             <h3 id="profile-modal-title" class="font-bold text-gray-800"><i class="fas fa-plus-circle mr-2 text-teal-500"></i>新建评估方案</h3>
+            <button onclick="closeProfileModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
           </div>
           <div class="p-5 space-y-4">
             <div>

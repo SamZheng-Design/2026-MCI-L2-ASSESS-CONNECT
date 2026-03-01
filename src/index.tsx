@@ -7,6 +7,7 @@ import { platformDeals, industryLabels, dealStatusLabels, cashflowFrequencyLabel
 import { builtInProfiles, type AgentProfile, type Agent } from './data/agents-data'
 
 const LLM_PROXY = 'http://127.0.0.1:3001'
+const DGT_PLATFORM_PORT = 3002 // DGT平台端口（不能是3000，否则自引用）
 
 const app = new Hono()
 
@@ -48,12 +49,16 @@ app.get('/api/deals', (c) => {
     status_color: dealStatusLabels[d.status]?.color || '',
     region: d.region,
     city: d.city,
+    main_business: d.main_business,
     funding_amount: d.funding_amount,
     investment_period_months: d.investment_period_months,
     revenue_share_ratio: d.revenue_share_ratio,
     cashflow_frequency: d.cashflow_frequency,
     cashflow_frequency_label: cashflowFrequencyLabels[d.cashflow_frequency] || d.cashflow_frequency,
-    submitted_date: d.submitted_date
+    submitted_date: d.submitted_date,
+    financial_data: d.financial_data,
+    project_documents: d.project_documents,
+    result: d.result
   }))
   return c.json({ success: true, data: list, total: list.length })
 })
@@ -284,7 +289,7 @@ app.post('/api/ai/evaluate', async (c) => {
     try {
       const controller2 = new AbortController()
       const timeout2 = setTimeout(() => controller2.abort(), 3000)
-      const resp = await fetch(`${DGT_PLATFORM}/api/ai/evaluate`, {
+      const resp = await fetch(`http://127.0.0.1:${DGT_PLATFORM_PORT}/api/ai/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -358,18 +363,24 @@ app.get('/api/assess/progress/:jobId', async (c) => {
 })
 
 // ==================== DGT 平台代理（保留兼容） ====================
-const DGT_PLATFORM = 'http://127.0.0.1:3000'
-
+// 注意：DGT平台运行在3002端口，不能指向3000（那是本应用自己）
 app.all('/api/dgt/*', async (c) => {
   const subPath = c.req.path.replace('/api/dgt', '/api')
   const qs = c.req.url.includes('?') ? '?' + c.req.url.split('?')[1] : ''
-  const url = `${DGT_PLATFORM}${subPath}${qs}`
+  const url = `http://127.0.0.1:${DGT_PLATFORM_PORT}${subPath}${qs}`
   try {
-    const init: RequestInit = { method: c.req.method, headers: { 'Content-Type': 'application/json' } }
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+    const init: RequestInit = {
+      method: c.req.method,
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
+    }
     if (['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
       init.body = await c.req.raw.clone().text()
     }
     const resp = await fetch(url, init)
+    clearTimeout(timeoutId)
     const body = await resp.text()
     return new Response(body, {
       status: resp.status,
