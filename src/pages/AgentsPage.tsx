@@ -1,14 +1,14 @@
 import type { FC } from 'hono/jsx'
 
 // =====================================================
-// 智能体管理中心 — AgentsPage
+// 智能体管理中心 — AgentsPage (v4)
 //
-// 用户主页：管理多套智能体评估方案
-//   - 查看所有方案（内置 + 自定义）
-//   - 新建自定义方案
-//   - 编辑方案内的每个智能体（名称、阈值、权重、提示词等）
-//   - 克隆/删除方案
-//   - 一键设为默认方案
+// v4 核心改进：
+//   1. 所有弹窗统一 z-index=50，绝不叠加
+//   2. 页面进入即看到方案列表，不弹任何弹窗
+//   3. JS 加版本号防缓存
+//   4. 方案详情在页面内展开（非弹窗）
+//   5. 弹窗只有三种：新建方案、编辑方案、编辑/新建智能体
 // =====================================================
 
 export const AgentsPage: FC = () => {
@@ -79,11 +79,17 @@ export const AgentsPage: FC = () => {
         .toggle-switch input:checked + .toggle-slider { background: var(--primary-500); }
         .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
 
-        /* Modal — 分级 z-index 防止叠加 */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-        .modal-overlay.z-modal-1 { z-index: 50; }
-        .modal-overlay.z-modal-2 { z-index: 60; }
-        .modal-card { background: white; border-radius: 1rem; box-shadow: 0 25px 60px rgba(0,0,0,0.2); max-height: 85vh; display: flex; flex-direction: column; }
+        /* 统一弹窗层 — 所有弹窗都是 z-index:50，同一时刻只能有一个 */
+        .modal-overlay {
+          position: fixed; inset: 0; z-index: 50;
+          background: rgba(0,0,0,0.5);
+          display: flex; align-items: center; justify-content: center;
+        }
+        .modal-card {
+          background: white; border-radius: 1rem;
+          box-shadow: 0 25px 60px rgba(0,0,0,0.2);
+          max-height: 85vh; display: flex; flex-direction: column;
+        }
 
         #agents-toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
         .toast-item { padding: 0.75rem 1rem; border-radius: 0.625rem; font-size: 0.875rem; box-shadow: 0 4px 6px rgba(0,0,0,.1); min-width: 200px; max-width: 360px; display: flex; align-items: center; gap: 0.5rem; animation: slideIn 0.3s ease-out; }
@@ -193,7 +199,7 @@ export const AgentsPage: FC = () => {
             </div>
           </div>
 
-          {/* ── 方案详情 & 智能体编辑区 ── */}
+          {/* ── 方案详情 & 智能体编辑区（页面内联展开，不是弹窗） ── */}
           <div id="profile-detail-section" class="hidden">
             <div class="gs-card overflow-hidden">
               {/* 方案头部 */}
@@ -252,33 +258,103 @@ export const AgentsPage: FC = () => {
         </div>
       </div>
 
-      {/* ── 编辑智能体弹窗 (z-50) ── */}
-      <div id="edit-agent-modal" class="hidden modal-overlay z-modal-1" onclick="if(event.target===this)closeEditAgentModal()">
+      {/* ======================================================
+           统一弹窗区 — 同一时刻只能有一个弹窗显示
+           所有弹窗 z-index 相同(50)，由 JS 保证互斥
+           ====================================================== */}
+
+      {/* ── 弹窗1: 新建方案 ── */}
+      <div id="modal-create-profile" class="hidden modal-overlay" onclick="if(event.target===this)closeModal()">
+        <div class="modal-card w-full max-w-md mx-4">
+          <div class="p-5 border-b flex items-center justify-between">
+            <h3 class="font-bold text-gray-800"><i class="fas fa-plus-circle mr-2 text-teal-500"></i>新建评估方案</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">方案名称 <span class="text-red-400">*</span></label>
+              <input id="inp-create-profile-name" type="text" placeholder="例：我的餐饮专项方案" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
+              <textarea id="inp-create-profile-desc" rows={2} placeholder="方案适用场景说明" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">基于模板</label>
+              <select id="inp-create-profile-template" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
+                <option value="default-profile">标准评估方案</option>
+                <option value="conservative-profile">保守型评估方案</option>
+                <option value="aggressive-profile">激进型评估方案</option>
+                <option value="empty">空白方案（从零开始）</option>
+              </select>
+            </div>
+          </div>
+          <div class="p-5 border-t flex justify-end space-x-3">
+            <button onclick="closeModal()" class="btn-secondary">取消</button>
+            <button onclick="doCreateProfile()" class="btn-primary"><i class="fas fa-check"></i>创建</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 弹窗2: 编辑方案信息 ── */}
+      <div id="modal-edit-profile" class="hidden modal-overlay" onclick="if(event.target===this)closeModal()">
+        <div class="modal-card w-full max-w-md mx-4">
+          <div class="p-5 border-b flex items-center justify-between">
+            <h3 class="font-bold text-gray-800"><i class="fas fa-edit mr-2 text-teal-500"></i>编辑方案信息</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">方案名称 <span class="text-red-400">*</span></label>
+              <input id="inp-edit-profile-name" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
+              <textarea id="inp-edit-profile-desc" rows={3} placeholder="方案适用场景说明" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">图标 (FontAwesome)</label>
+              <input id="inp-edit-profile-icon" type="text" placeholder="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>
+              <input id="inp-edit-profile-iconcolor" type="color" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer" />
+            </div>
+          </div>
+          <div class="p-5 border-t flex justify-end space-x-3">
+            <button onclick="closeModal()" class="btn-secondary">取消</button>
+            <button onclick="doSaveProfile()" class="btn-primary"><i class="fas fa-save"></i>保存</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 弹窗3: 编辑/新建智能体 ── */}
+      <div id="modal-edit-agent" class="hidden modal-overlay" onclick="if(event.target===this)closeModal()">
         <div class="modal-card w-full max-w-2xl mx-4">
           <div class="p-5 border-b flex items-center justify-between">
-            <h3 id="edit-agent-title" class="font-bold text-gray-800"><i class="fas fa-edit mr-2 text-teal-500"></i>编辑智能体</h3>
-            <button onclick="closeEditAgentModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            <h3 id="modal-edit-agent-title" class="font-bold text-gray-800"><i class="fas fa-edit mr-2 text-teal-500"></i>编辑智能体</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
           </div>
           <div class="p-5 overflow-y-auto" style="max-height: 65vh;">
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">智能体名称 <span class="text-red-400">*</span></label>
-                <input id="edit-agent-name" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+                <input id="inp-agent-name" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">评估维度</label>
-                <input id="edit-agent-dimension" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+                <input id="inp-agent-dimension" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">环型</label>
-                <select id="edit-agent-ring" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
+                <select id="inp-agent-ring" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
                   <option value="outer">外环漏斗（一票否决）</option>
                   <option value="inner">中环筛子（加权评分）</option>
                 </select>
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">适用行业</label>
-                <select id="edit-agent-industry" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
+                <select id="inp-agent-industry" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
                   <option value="all">全行业通用</option>
                   <option value="catering">餐饮</option>
                   <option value="retail">零售</option>
@@ -292,104 +368,39 @@ export const AgentsPage: FC = () => {
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">通过阈值 (0-100)</label>
-                <input id="edit-agent-threshold" type="number" min="0" max="100" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                <input id="inp-agent-threshold" type="number" min="0" max="100" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">权重 (%，仅中环有效)</label>
-                <input id="edit-agent-weight" type="number" min="0" max="100" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                <input id="inp-agent-weight" type="number" min="0" max="100" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">图标 (FontAwesome)</label>
-                <input id="edit-agent-icon" type="text" placeholder="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                <input id="inp-agent-icon" type="text" placeholder="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>
-                <input id="edit-agent-iconcolor" type="color" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer" />
+                <input id="inp-agent-iconcolor" type="color" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer" />
               </div>
               <div class="col-span-2">
                 <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
-                <textarea id="edit-agent-desc" rows={2} class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
+                <textarea id="inp-agent-desc" rows={2} class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
               </div>
               <div class="col-span-2">
                 <label class="text-xs font-medium text-gray-500 mb-1 block">AI 提示词模板</label>
-                <textarea id="edit-agent-prompt" rows={4} class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none font-mono"></textarea>
+                <textarea id="inp-agent-prompt" rows={4} class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none font-mono"></textarea>
               </div>
             </div>
           </div>
           <div class="p-5 border-t flex justify-end space-x-3">
-            <button onclick="closeEditAgentModal()" class="btn-secondary">取消</button>
-            <button onclick="saveAgent()" class="btn-primary"><i class="fas fa-save"></i>保存</button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 新建方案弹窗 (z-60) ── */}
-      <div id="profile-modal" class="hidden modal-overlay z-modal-2" onclick="if(event.target===this)closeProfileModal()">
-        <div class="modal-card w-full max-w-md mx-4">
-          <div class="p-5 border-b flex items-center justify-between">
-            <h3 id="profile-modal-title" class="font-bold text-gray-800"><i class="fas fa-plus-circle mr-2 text-teal-500"></i>新建评估方案</h3>
-            <button onclick="closeProfileModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
-          </div>
-          <div class="p-5 space-y-4">
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">方案名称 <span class="text-red-400">*</span></label>
-              <input id="profile-name" type="text" placeholder="例：我的餐饮专项方案" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
-              <textarea id="profile-desc-input" rows={2} placeholder="方案适用场景说明" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">基于模板</label>
-              <select id="profile-template" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
-                <option value="default-profile">标准评估方案</option>
-                <option value="conservative-profile">保守型评估方案</option>
-                <option value="aggressive-profile">激进型评估方案</option>
-                <option value="empty">空白方案（从零开始）</option>
-              </select>
-            </div>
-          </div>
-          <div class="p-5 border-t flex justify-end space-x-3">
-            <button onclick="closeProfileModal()" class="btn-secondary">取消</button>
-            <button onclick="createProfile()" class="btn-primary"><i class="fas fa-check"></i>创建</button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 编辑方案弹窗 (z-60) ── */}
-      <div id="edit-profile-modal" class="hidden modal-overlay z-modal-2" onclick="if(event.target===this)closeEditProfileModal()">
-        <div class="modal-card w-full max-w-md mx-4">
-          <div class="p-5 border-b flex items-center justify-between">
-            <h3 class="font-bold text-gray-800"><i class="fas fa-edit mr-2 text-teal-500"></i>编辑方案信息</h3>
-            <button onclick="closeEditProfileModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"><i class="fas fa-times text-xl"></i></button>
-          </div>
-          <div class="p-5 space-y-4">
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">方案名称 <span class="text-red-400">*</span></label>
-              <input id="edit-profile-name" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
-              <textarea id="edit-profile-desc" rows={3} placeholder="方案适用场景说明" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">图标 (FontAwesome)</label>
-              <input id="edit-profile-icon" type="text" placeholder="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>
-              <input id="edit-profile-iconcolor" type="color" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer" />
-            </div>
-          </div>
-          <div class="p-5 border-t flex justify-end space-x-3">
-            <button onclick="closeEditProfileModal()" class="btn-secondary">取消</button>
-            <button onclick="saveProfileEdit()" class="btn-primary"><i class="fas fa-save"></i>保存</button>
+            <button onclick="closeModal()" class="btn-secondary">取消</button>
+            <button onclick="doSaveAgent()" class="btn-primary"><i class="fas fa-save"></i>保存</button>
           </div>
         </div>
       </div>
 
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-      <script src="/static/agents-manage.js"></script>
+      <script src={"/static/agents-manage.js?v=" + Date.now()}></script>
     </div>
   )
 }
