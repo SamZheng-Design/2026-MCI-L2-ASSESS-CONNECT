@@ -1,11 +1,10 @@
 // ==========================================================
-// 智能体管理中心 — agents-manage.js (v4)
+// 智能体管理中心 — agents-manage.js (v5)
 //
-// v4 设计原则：
-//   1. 唯一弹窗：同一时刻只有一个弹窗，由 closeModal() 统一关闭
-//   2. 页面进入即方案列表，不会自动弹窗
-//   3. 所有弹窗 ID 统一前缀 modal-*
-//   4. 所有表单 ID 统一前缀 inp-*
+// v5 两级视图设计：
+//   视图1 (view-warehouse): 方案仓库列表 — 进入即展示
+//   视图2 (view-detail):    方案详情+智能体编辑 — 点击方案后展示
+//   弹窗只有三种，均由用户主动触发
 // ==========================================================
 
 let allProfiles = [];
@@ -17,11 +16,102 @@ let editingIsNew = false;
 const PRIMARY = '#5DC4B3';
 
 // ==========================================================
-// 唯一弹窗管理 — 同一时刻只能有一个弹窗
+// 视图切换 — 仓库列表 ↔ 方案详情
+// ==========================================================
+function showWarehouseView() {
+  document.getElementById('view-warehouse').classList.remove('hidden');
+  document.getElementById('view-detail').classList.add('hidden');
+  document.getElementById('breadcrumb-nav').classList.add('hidden');
+  document.getElementById('topbar-warehouse-actions').classList.remove('hidden');
+  document.getElementById('topbar-detail-actions').classList.add('hidden');
+  selectedProfileId = null;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showDetailView(profileId) {
+  selectedProfileId = profileId;
+  const profile = allProfiles.find(p => p.id === profileId);
+  if (!profile) { showToast('方案不存在', 'error'); return; }
+
+  // 切换视图
+  document.getElementById('view-warehouse').classList.add('hidden');
+  document.getElementById('view-detail').classList.remove('hidden');
+  document.getElementById('view-detail').classList.remove('view-fade-in');
+  void document.getElementById('view-detail').offsetWidth; // force reflow
+  document.getElementById('view-detail').classList.add('view-fade-in');
+
+  // 面包屑
+  document.getElementById('breadcrumb-nav').classList.remove('hidden');
+  document.getElementById('breadcrumb-profile-name').textContent = profile.name;
+
+  // 顶部按钮
+  document.getElementById('topbar-warehouse-actions').classList.add('hidden');
+  document.getElementById('topbar-detail-actions').classList.remove('hidden');
+
+  // 填充方案详情头部
+  fillDetailHeader(profile);
+
+  // 渲染智能体
+  currentAgentTab = 'outer';
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === 'outer');
+  });
+  renderAgentsList();
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function backToWarehouse() {
+  showWarehouseView();
+  renderProfilesGrid();
+  updateWarehouseStats();
+}
+
+function fillDetailHeader(profile) {
+  document.getElementById('detail-name').textContent = profile.name;
+  document.getElementById('detail-desc').textContent = profile.description || '暂无描述';
+  document.getElementById('detail-icon').style.background = (profile.icon_color || PRIMARY) + '20';
+  document.getElementById('detail-icon').innerHTML = '<i class="' + (profile.icon || 'fas fa-robot') + ' text-2xl" style="color:' + (profile.icon_color || PRIMARY) + '"></i>';
+
+  // 默认标记
+  const badge = document.getElementById('detail-default-badge');
+  if (profile.is_default) {
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+
+  // 设为默认按钮
+  const btnDefault = document.getElementById('btn-set-default');
+  if (profile.is_default) {
+    btnDefault.innerHTML = '<i class="fas fa-star text-yellow-500 mr-1"></i>已是默认';
+    btnDefault.disabled = true;
+    btnDefault.style.opacity = '0.5';
+  } else {
+    btnDefault.innerHTML = '<i class="fas fa-star mr-1"></i>设为默认';
+    btnDefault.disabled = false;
+    btnDefault.style.opacity = '1';
+  }
+
+  // 方案内统计
+  const outerCount = profile.agents.filter(a => a.ring_type === 'outer').length;
+  const innerCount = profile.agents.filter(a => a.ring_type === 'inner').length;
+  const enabledCount = profile.agents.filter(a => a.enabled !== false).length;
+  document.getElementById('detail-stat-outer').textContent = outerCount;
+  document.getElementById('detail-stat-inner').textContent = innerCount;
+  document.getElementById('detail-stat-enabled').textContent = enabledCount;
+  document.getElementById('detail-updated-at').textContent = formatDate(profile.updated_at);
+
+  // Tab 计数
+  document.getElementById('tab-outer-count').textContent = outerCount;
+  document.getElementById('tab-inner-count').textContent = innerCount;
+}
+
+// ==========================================================
+// 弹窗管理 — 同一时刻只能有一个
 // ==========================================================
 const MODAL_IDS = ['modal-create-profile', 'modal-edit-profile', 'modal-edit-agent'];
 
-// 关闭所有弹窗 — 任何时候调用都安全
 function closeModal() {
   MODAL_IDS.forEach(id => {
     const el = document.getElementById(id);
@@ -30,7 +120,6 @@ function closeModal() {
   document.body.style.overflow = '';
 }
 
-// 打开指定弹窗（先关闭所有）
 function openModal(id) {
   closeModal();
   const el = document.getElementById(id);
@@ -97,12 +186,20 @@ async function loadProfiles() {
   try {
     const data = await apiCall('/api/agents/profiles');
     allProfiles = data.data || [];
-    renderProfilesGrid();
-    updateStats();
-    if (selectedProfileId) {
+    // 如果当前在仓库视图，渲染仓库
+    if (!selectedProfileId) {
+      renderProfilesGrid();
+      updateWarehouseStats();
+    } else {
+      // 如果在详情视图，刷新详情
       const exists = allProfiles.find(p => p.id === selectedProfileId);
-      if (exists) showProfileDetail(selectedProfileId);
-      else { selectedProfileId = null; document.getElementById('profile-detail-section').classList.add('hidden'); }
+      if (exists) {
+        fillDetailHeader(exists);
+        renderAgentsList();
+      } else {
+        // 方案被删除了，回到仓库
+        backToWarehouse();
+      }
     }
   } catch(e) {
     console.error('加载方案失败:', e);
@@ -110,29 +207,28 @@ async function loadProfiles() {
   }
 }
 
-function updateStats() {
+function updateWarehouseStats() {
   const el = (id) => document.getElementById(id);
   el('stat-profiles').textContent = allProfiles.length;
   const def = allProfiles.find(p => p.is_default);
   el('stat-default').textContent = def ? def.name : '未设置';
 
-  const target = selectedProfileId
-    ? allProfiles.find(p => p.id === selectedProfileId)
-    : (allProfiles.find(p => p.is_default) || allProfiles[0]);
-
-  if (target) {
-    el('stat-outer').textContent = target.agents.filter(a => a.ring_type === 'outer' && a.enabled !== false).length;
-    el('stat-inner').textContent = target.agents.filter(a => a.ring_type === 'inner' && a.enabled !== false).length;
-  }
+  let totalOuter = 0, totalInner = 0;
+  allProfiles.forEach(p => {
+    totalOuter += p.agents.filter(a => a.ring_type === 'outer').length;
+    totalInner += p.agents.filter(a => a.ring_type === 'inner').length;
+  });
+  el('stat-outer').textContent = totalOuter;
+  el('stat-inner').textContent = totalInner;
 }
 
 // ==========================================================
-// 渲染方案卡片
+// 渲染方案仓库卡片
 // ==========================================================
 function renderProfilesGrid() {
   const grid = document.getElementById('profiles-grid');
   if (!allProfiles.length) {
-    grid.innerHTML = '<div class="text-center py-12 text-gray-400 col-span-3"><i class="fas fa-inbox text-3xl mb-3"></i><p>暂无评估方案</p><p class="text-xs mt-1">点击右上角"新建方案"开始创建</p></div>';
+    grid.innerHTML = '<div class="text-center py-16 text-gray-400 col-span-3"><i class="fas fa-inbox text-4xl mb-3"></i><p class="text-base">暂无评估方案</p><p class="text-xs mt-1">点击右上角"新建方案"开始创建</p></div>';
     return;
   }
 
@@ -140,14 +236,14 @@ function renderProfilesGrid() {
     const outer = p.agents.filter(a => a.ring_type === 'outer').length;
     const inner = p.agents.filter(a => a.ring_type === 'inner').length;
     const enabled = p.agents.filter(a => a.enabled !== false).length;
-    const isSelected = selectedProfileId === p.id;
-    return '<div class="gs-card profile-card p-5 ' + (isSelected ? 'selected' : '') + '" onclick="showProfileDetail(\'' + p.id + '\')" data-profile-id="' + p.id + '">' +
+    return '<div class="gs-card profile-card p-5" onclick="showDetailView(\'' + p.id + '\')" data-profile-id="' + p.id + '">' +
       (p.is_default ? '<div class="default-badge"><i class="fas fa-star mr-1"></i>默认</div>' : '') +
       '<div class="flex items-center space-x-3 mb-3">' +
       '<div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:' + (p.icon_color || PRIMARY) + '20">' +
       '<i class="' + (p.icon || 'fas fa-robot') + ' text-lg" style="color:' + (p.icon_color || PRIMARY) + '"></i></div>' +
       '<div class="flex-1 min-w-0"><h4 class="font-semibold text-gray-800 truncate">' + p.name + '</h4>' +
-      '<p class="text-xs text-gray-400 line-clamp-1">' + (p.description || '暂无描述') + '</p></div></div>' +
+      '<p class="text-xs text-gray-400 line-clamp-1">' + (p.description || '暂无描述') + '</p></div>' +
+      '<i class="fas fa-chevron-right text-gray-300 text-sm flex-shrink-0"></i></div>' +
       '<div class="grid grid-cols-3 gap-2 text-center">' +
       '<div class="bg-red-50 rounded-lg py-2"><p class="text-lg font-bold text-red-600">' + outer + '</p><p class="text-[10px] text-gray-500">外环</p></div>' +
       '<div class="bg-blue-50 rounded-lg py-2"><p class="text-lg font-bold text-blue-600">' + inner + '</p><p class="text-[10px] text-gray-500">中环</p></div>' +
@@ -158,7 +254,6 @@ function renderProfilesGrid() {
       (!p.is_default ? '<button onclick="quickSetDefault(\'' + p.id + '\')" class="text-yellow-500 hover:text-yellow-600 transition" title="设为默认"><i class="fas fa-star text-xs"></i></button>' : '') +
       '<button onclick="quickClone(\'' + p.id + '\')" class="text-blue-400 hover:text-blue-500 transition" title="克隆"><i class="fas fa-copy text-xs"></i></button>' +
       (!p.is_default ? '<button onclick="quickDelete(\'' + p.id + '\')" class="text-red-300 hover:text-red-500 transition" title="删除"><i class="fas fa-trash text-xs"></i></button>' : '') +
-      '<span class="text-teal-500 font-medium cursor-pointer" onclick="showProfileDetail(\'' + p.id + '\')"><i class="fas fa-chevron-right mr-1"></i>详情</span>' +
       '</div></div></div>';
   }).join('');
 }
@@ -170,7 +265,7 @@ function formatDate(dateStr) {
 }
 
 // ==========================================================
-// 方案卡片快捷操作
+// 方案卡片快捷操作（仓库视图内）
 // ==========================================================
 async function quickSetDefault(profileId) {
   try {
@@ -185,7 +280,6 @@ async function quickClone(profileId) {
     const resp = await apiCall('/api/agents/profiles/' + profileId + '/clone', { method: 'POST' });
     showToast('方案已克隆', 'success');
     await loadProfiles();
-    if (resp.data?.id) showProfileDetail(resp.data.id);
   } catch(e) { showToast('克隆失败: ' + e.message, 'error'); }
 }
 
@@ -195,60 +289,13 @@ async function quickDelete(profileId) {
   if (!confirm('确认删除方案"' + (profile?.name || '') + '"？此操作不可恢复。')) return;
   try {
     await apiCall('/api/agents/profiles/' + profileId, { method: 'DELETE' });
-    if (selectedProfileId === profileId) deselectProfile();
     showToast('方案已删除', 'success');
     await loadProfiles();
   } catch(e) { showToast('删除失败: ' + e.message, 'error'); }
 }
 
 // ==========================================================
-// 展开方案详情（页面内联，不是弹窗）
-// ==========================================================
-function showProfileDetail(profileId) {
-  selectedProfileId = profileId;
-  const profile = allProfiles.find(p => p.id === profileId);
-  if (!profile) return;
-
-  // 高亮卡片
-  document.querySelectorAll('.profile-card').forEach(c => {
-    c.classList.toggle('selected', c.dataset.profileId === profileId);
-  });
-
-  // 展示详情
-  document.getElementById('profile-detail-section').classList.remove('hidden');
-  document.getElementById('detail-name').textContent = profile.name;
-  document.getElementById('detail-desc').textContent = profile.description || '暂无描述';
-  document.getElementById('detail-icon').style.background = (profile.icon_color || PRIMARY) + '20';
-  document.getElementById('detail-icon').innerHTML = '<i class="' + (profile.icon || 'fas fa-robot') + ' text-xl" style="color:' + (profile.icon_color || PRIMARY) + '"></i>';
-
-  const btnDefault = document.getElementById('btn-set-default');
-  if (profile.is_default) {
-    btnDefault.innerHTML = '<i class="fas fa-star text-yellow-500 mr-1"></i>已是默认';
-    btnDefault.disabled = true;
-  } else {
-    btnDefault.innerHTML = '<i class="fas fa-star mr-1"></i>设为默认';
-    btnDefault.disabled = false;
-  }
-
-  document.getElementById('tab-outer-count').textContent = profile.agents.filter(a => a.ring_type === 'outer').length;
-  document.getElementById('tab-inner-count').textContent = profile.agents.filter(a => a.ring_type === 'inner').length;
-
-  updateStats();
-  renderAgentsList();
-
-  setTimeout(() => document.getElementById('profile-detail-section').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-}
-
-function deselectProfile() {
-  selectedProfileId = null;
-  document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
-  document.getElementById('profile-detail-section').classList.add('hidden');
-  updateStats();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// ==========================================================
-// 渲染智能体列表
+// 渲染智能体列表（详情视图内）
 // ==========================================================
 function renderAgentsList() {
   const profile = allProfiles.find(p => p.id === selectedProfileId);
@@ -258,7 +305,7 @@ function renderAgentsList() {
   const listEl = document.getElementById('agents-list');
 
   if (!agents.length) {
-    listEl.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-3xl mb-2"></i><p>暂无' + (currentAgentTab === 'outer' ? '外环漏斗' : '中环筛子') + '智能体</p><p class="text-xs mt-1">点击"添加智能体"开始配置</p></div>';
+    listEl.innerHTML = '<div class="text-center py-10 text-gray-400"><i class="fas fa-inbox text-3xl mb-2"></i><p>暂无' + (currentAgentTab === 'outer' ? '外环漏斗' : '中环筛子') + '智能体</p><p class="text-xs mt-1">点击上方"添加智能体"开始配置</p></div>';
     return;
   }
 
@@ -296,7 +343,7 @@ function switchAgentTab(tab) {
 }
 
 // ==========================================================
-// 智能体操作
+// 智能体操作（详情视图内）
 // ==========================================================
 async function toggleAgent(agentId, enabled) {
   try {
@@ -306,7 +353,7 @@ async function toggleAgent(agentId, enabled) {
     const profile = allProfiles.find(p => p.id === selectedProfileId);
     const agent = profile?.agents.find(a => a.id === agentId);
     if (agent) agent.enabled = enabled;
-    updateStats();
+    fillDetailHeader(profile);
     showToast(enabled ? '已启用' : '已禁用', 'success');
   } catch(e) { showToast('操作失败: ' + e.message, 'error'); }
 }
@@ -346,7 +393,11 @@ async function doCreateProfile() {
     closeModal();
     showToast('方案创建成功！', 'success');
     await loadProfiles();
-    if (resp.data?.id) showProfileDetail(resp.data.id);
+    // 创建后直接进入该方案的详情
+    if (resp.data?.id) {
+      allProfiles = (await apiCall('/api/agents/profiles')).data || allProfiles;
+      showDetailView(resp.data.id);
+    }
   } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
 }
 
@@ -463,7 +514,7 @@ async function doSaveAgent() {
 }
 
 // ==========================================================
-// 方案操作（详情区按钮）
+// 方案操作（详情视图按钮）
 // ==========================================================
 async function setAsDefault() {
   if (!selectedProfileId) return;
@@ -480,7 +531,11 @@ async function cloneProfile() {
     const resp = await apiCall('/api/agents/profiles/' + selectedProfileId + '/clone', { method: 'POST' });
     showToast('方案已克隆', 'success');
     await loadProfiles();
-    if (resp.data?.id) showProfileDetail(resp.data.id);
+    // 克隆后进入新方案详情
+    if (resp.data?.id) {
+      allProfiles = (await apiCall('/api/agents/profiles')).data || allProfiles;
+      showDetailView(resp.data.id);
+    }
   } catch(e) { showToast('克隆失败: ' + e.message, 'error'); }
 }
 
@@ -491,18 +546,22 @@ async function deleteProfile() {
   if (!confirm('确认删除方案"' + (profile?.name || '') + '"？此操作不可恢复。')) return;
   try {
     await apiCall('/api/agents/profiles/' + selectedProfileId, { method: 'DELETE' });
-    deselectProfile();
     showToast('方案已删除', 'success');
+    // 删除后回到仓库
+    selectedProfileId = null;
     await loadProfiles();
+    backToWarehouse();
   } catch(e) { showToast('删除失败: ' + e.message, 'error'); }
 }
 
 // ==========================================================
-// 初始化 — 只加载方案列表，不弹任何弹窗
+// 初始化 — 显示仓库视图，不弹任何弹窗
 // ==========================================================
 document.addEventListener('DOMContentLoaded', () => {
-  // 确保所有弹窗关闭（防止缓存残留状态）
+  // 确保所有弹窗关闭
   closeModal();
+  // 确保处于仓库视图
+  showWarehouseView();
 
   const user = checkAgentsAuth();
   if (!user) return;

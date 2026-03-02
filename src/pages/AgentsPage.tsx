@@ -1,14 +1,14 @@
 import type { FC } from 'hono/jsx'
 
 // =====================================================
-// 智能体管理中心 — AgentsPage (v4)
+// 智能体管理中心 — AgentsPage (v5)
 //
-// v4 核心改进：
-//   1. 所有弹窗统一 z-index=50，绝不叠加
-//   2. 页面进入即看到方案列表，不弹任何弹窗
-//   3. JS 加版本号防缓存
-//   4. 方案详情在页面内展开（非弹窗）
-//   5. 弹窗只有三种：新建方案、编辑方案、编辑/新建智能体
+// v5 核心改进：
+//   1. 两级视图：仓库列表 ↔ 方案详情，互斥显示
+//   2. 进入页面只看到方案仓库列表，不弹任何弹窗
+//   3. 点击方案卡片 → 进入方案详情页（列表隐藏）
+//   4. 方案详情页内编辑智能体
+//   5. 弹窗仅限：新建方案、编辑方案信息、编辑/新建智能体
 // =====================================================
 
 export const AgentsPage: FC = () => {
@@ -56,7 +56,6 @@ export const AgentsPage: FC = () => {
 
         .profile-card { transition: all 0.25s ease; cursor: pointer; position: relative; }
         .profile-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,.08); }
-        .profile-card.selected { border: 2px solid var(--primary-500) !important; background: var(--primary-50) !important; }
         .profile-card .default-badge {
           position: absolute; top: -1px; right: -1px; background: var(--primary-500); color: white;
           font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem;
@@ -79,7 +78,7 @@ export const AgentsPage: FC = () => {
         .toggle-switch input:checked + .toggle-slider { background: var(--primary-500); }
         .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
 
-        /* 统一弹窗层 — 所有弹窗都是 z-index:50，同一时刻只能有一个 */
+        /* 统一弹窗层 */
         .modal-overlay {
           position: fixed; inset: 0; z-index: 50;
           background: rgba(0,0,0,0.5);
@@ -101,6 +100,15 @@ export const AgentsPage: FC = () => {
         .tab-btn.active { background: var(--primary-500); color: white; }
         .tab-btn:not(.active) { background: white; color: #6B7280; border: 1px solid #E5E7EB; }
         .tab-btn:not(.active):hover { background: #F3F4F6; }
+
+        /* 视图切换动画 */
+        .view-fade-in { animation: viewFadeIn 0.3s ease-out; }
+        @keyframes viewFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 面包屑样式 */
+        .breadcrumb { font-size: 0.8rem; color: #9CA3AF; }
+        .breadcrumb a { color: var(--primary-500); text-decoration: none; cursor: pointer; }
+        .breadcrumb a:hover { text-decoration: underline; }
       `}</style>
 
       <div id="agents-toast-container"></div>
@@ -118,14 +126,29 @@ export const AgentsPage: FC = () => {
                 <p class="text-[10px] text-gray-400 font-medium -mt-0.5">Agent Configuration · 配置您的评估策略</p>
               </div>
             </div>
+            {/* 面包屑导航 — 仅在方案详情视图显示 */}
+            <div id="breadcrumb-nav" class="hidden breadcrumb ml-4 pl-4 border-l border-gray-200">
+              <a onclick="backToWarehouse()"><i class="fas fa-warehouse mr-1"></i>方案仓库</a>
+              <span class="mx-2">/</span>
+              <span id="breadcrumb-profile-name" class="text-gray-600 font-medium"></span>
+            </div>
           </div>
           <div class="flex items-center space-x-3">
             <a href="/assess" class="btn-secondary text-sm">
               <i class="fas fa-clipboard-check mr-1"></i>去评估
             </a>
-            <button onclick="openCreateProfileModal()" class="btn-primary">
-              <i class="fas fa-plus"></i>新建方案
-            </button>
+            {/* 顶部按钮区 — 仓库视图显示"新建方案" */}
+            <span id="topbar-warehouse-actions">
+              <button onclick="openCreateProfileModal()" class="btn-primary">
+                <i class="fas fa-plus"></i>新建方案
+              </button>
+            </span>
+            {/* 顶部按钮区 — 详情视图显示"返回仓库" */}
+            <span id="topbar-detail-actions" class="hidden">
+              <button onclick="backToWarehouse()" class="btn-secondary">
+                <i class="fas fa-arrow-left"></i>返回仓库
+              </button>
+            </span>
             <div class="w-px h-6 bg-gray-200 mx-1"></div>
             <div id="user-display" class="flex items-center space-x-2 cursor-pointer" onclick="handleAgentsLogout()">
               <div class="user-avatar" id="user-avatar-el">S</div>
@@ -143,79 +166,89 @@ export const AgentsPage: FC = () => {
       <div class="agents-root min-h-screen pt-6 pb-12">
         <div class="max-w-7xl mx-auto px-4">
 
-          {/* ── 概览统计 ── */}
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="gs-card p-4 flex items-center space-x-4">
-              <div class="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center">
-                <i class="fas fa-layer-group text-teal-500"></i>
+          {/* ================================================================
+               第一级视图：方案仓库（进入即展示）
+               ================================================================ */}
+          <div id="view-warehouse" class="view-fade-in">
+
+            {/* 概览统计 */}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div class="gs-card p-4 flex items-center space-x-4">
+                <div class="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center">
+                  <i class="fas fa-layer-group text-teal-500"></i>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">评估方案</p>
+                  <p class="text-xl font-bold text-slate-800" id="stat-profiles">-</p>
+                </div>
               </div>
-              <div>
-                <p class="text-xs text-slate-500">评估方案</p>
-                <p class="text-xl font-bold text-slate-800" id="stat-profiles">-</p>
+              <div class="gs-card p-4 flex items-center space-x-4">
+                <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                  <i class="fas fa-funnel-dollar text-red-500"></i>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">总外环智能体</p>
+                  <p class="text-xl font-bold text-slate-800" id="stat-outer">-</p>
+                </div>
+              </div>
+              <div class="gs-card p-4 flex items-center space-x-4">
+                <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <i class="fas fa-filter text-blue-500"></i>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">总中环智能体</p>
+                  <p class="text-xl font-bold text-slate-800" id="stat-inner">-</p>
+                </div>
+              </div>
+              <div class="gs-card p-4 flex items-center space-x-4">
+                <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                  <i class="fas fa-check-circle text-emerald-500"></i>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">当前默认方案</p>
+                  <p class="text-sm font-bold text-emerald-600 truncate max-w-32" id="stat-default">-</p>
+                </div>
               </div>
             </div>
-            <div class="gs-card p-4 flex items-center space-x-4">
-              <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
-                <i class="fas fa-funnel-dollar text-red-500"></i>
+
+            {/* 方案仓库列表 */}
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-gray-800">
+                  <i class="fas fa-warehouse mr-2 text-teal-500"></i>我的评估方案
+                </h2>
+                <p class="text-xs text-gray-400"><i class="fas fa-mouse-pointer mr-1"></i>点击方案进入编辑智能体配置</p>
               </div>
-              <div>
-                <p class="text-xs text-slate-500">外环智能体</p>
-                <p class="text-xl font-bold text-slate-800" id="stat-outer">-</p>
-              </div>
-            </div>
-            <div class="gs-card p-4 flex items-center space-x-4">
-              <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                <i class="fas fa-filter text-blue-500"></i>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500">中环智能体</p>
-                <p class="text-xl font-bold text-slate-800" id="stat-inner">-</p>
+              <div id="profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="text-center py-12 text-gray-400 col-span-3">
+                  <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                  <p>加载方案列表中...</p>
+                </div>
               </div>
             </div>
-            <div class="gs-card p-4 flex items-center space-x-4">
-              <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                <i class="fas fa-check-circle text-emerald-500"></i>
-              </div>
-              <div>
-                <p class="text-xs text-slate-500">当前默认方案</p>
-                <p class="text-sm font-bold text-emerald-600 truncate max-w-32" id="stat-default">-</p>
-              </div>
-            </div>
+
           </div>
 
-          {/* ── 方案列表 ── */}
-          <div class="mb-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-lg font-bold text-gray-800">
-                <i class="fas fa-th-large mr-2 text-teal-500"></i>我的评估方案
-              </h2>
-              <p class="text-xs text-gray-400">点击方案查看详情，可编辑智能体配置</p>
-            </div>
-            <div id="profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div class="text-center py-12 text-gray-400 col-span-3">
-                <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
-                <p>加载方案列表中...</p>
-              </div>
-            </div>
-          </div>
+          {/* ================================================================
+               第二级视图：方案详情 + 智能体编辑区（进入方案后展示）
+               ================================================================ */}
+          <div id="view-detail" class="hidden view-fade-in">
 
-          {/* ── 方案详情 & 智能体编辑区（页面内联展开，不是弹窗） ── */}
-          <div id="profile-detail-section" class="hidden">
-            <div class="gs-card overflow-hidden">
-              {/* 方案头部 */}
-              <div id="profile-detail-header" class="p-5 border-b bg-gradient-to-r from-teal-50 to-cyan-50">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center space-x-3">
-                    <button onclick="deselectProfile()" class="w-8 h-8 rounded-lg bg-white/80 border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white transition flex-shrink-0" title="返回方案列表">
-                      <i class="fas fa-arrow-left text-sm"></i>
-                    </button>
-                    <div id="detail-icon" class="w-12 h-12 rounded-xl flex items-center justify-center"></div>
+            {/* 方案详情头部卡片 */}
+            <div class="gs-card overflow-hidden mb-6">
+              <div class="p-5 bg-gradient-to-r from-teal-50 to-cyan-50">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                  <div class="flex items-center space-x-4">
+                    <div id="detail-icon" class="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"></div>
                     <div>
-                      <h3 id="detail-name" class="text-lg font-bold text-gray-800"></h3>
-                      <p id="detail-desc" class="text-sm text-gray-500 mt-0.5"></p>
+                      <div class="flex items-center space-x-2">
+                        <h3 id="detail-name" class="text-xl font-bold text-gray-800"></h3>
+                        <span id="detail-default-badge" class="hidden text-[10px] px-2 py-0.5 bg-teal-500 text-white rounded-full font-bold"><i class="fas fa-star mr-0.5"></i>默认</span>
+                      </div>
+                      <p id="detail-desc" class="text-sm text-gray-500 mt-1 max-w-lg"></p>
                     </div>
                   </div>
-                  <div class="flex items-center space-x-2">
+                  <div class="flex items-center space-x-2 flex-wrap gap-y-2">
                     <button onclick="openEditProfileModal()" class="btn-secondary text-xs">
                       <i class="fas fa-pen"></i>编辑方案
                     </button>
@@ -230,10 +263,34 @@ export const AgentsPage: FC = () => {
                     </button>
                   </div>
                 </div>
+                {/* 方案内统计 */}
+                <div class="flex items-center space-x-6 mt-4 pt-4 border-t border-teal-100/50">
+                  <div class="flex items-center space-x-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                    <span class="text-gray-500">外环漏斗</span>
+                    <span id="detail-stat-outer" class="font-bold text-gray-800">0</span>
+                  </div>
+                  <div class="flex items-center space-x-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                    <span class="text-gray-500">中环筛子</span>
+                    <span id="detail-stat-inner" class="font-bold text-gray-800">0</span>
+                  </div>
+                  <div class="flex items-center space-x-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-gray-500">已启用</span>
+                    <span id="detail-stat-enabled" class="font-bold text-gray-800">0</span>
+                  </div>
+                  <div class="text-xs text-gray-400 ml-auto">
+                    更新: <span id="detail-updated-at">-</span>
+                  </div>
+                </div>
               </div>
+            </div>
 
+            {/* 智能体配置区 */}
+            <div class="gs-card overflow-hidden">
               {/* Tab 切换 */}
-              <div class="px-5 pt-4 flex items-center space-x-2">
+              <div class="px-5 pt-4 pb-3 border-b flex items-center space-x-2">
                 <button onclick="switchAgentTab('outer')" class="tab-btn active" data-tab="outer">
                   <i class="fas fa-funnel-dollar mr-1"></i>外环漏斗 (<span id="tab-outer-count">0</span>)
                 </button>
@@ -241,7 +298,7 @@ export const AgentsPage: FC = () => {
                   <i class="fas fa-filter mr-1"></i>中环筛子 (<span id="tab-inner-count">0</span>)
                 </button>
                 <div class="flex-1"></div>
-                <button onclick="openAddAgentModal()" class="btn-secondary text-xs">
+                <button onclick="openAddAgentModal()" class="btn-primary text-xs">
                   <i class="fas fa-plus"></i>添加智能体
                 </button>
               </div>
@@ -249,10 +306,11 @@ export const AgentsPage: FC = () => {
               {/* 智能体列表 */}
               <div class="p-5">
                 <div id="agents-list" class="space-y-2">
-                  <p class="text-center text-gray-400 py-6">选择方案后显示智能体列表</p>
+                  <p class="text-center text-gray-400 py-6">加载中...</p>
                 </div>
               </div>
             </div>
+
           </div>
 
         </div>
