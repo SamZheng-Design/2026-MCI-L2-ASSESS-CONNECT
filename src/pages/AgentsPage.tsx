@@ -119,11 +119,11 @@ export const AgentsPage: FC = () => {
           <div class="flex items-center space-x-4">
             <div class="flex items-center space-x-3">
               <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-                <i class="fas fa-robot text-white text-lg"></i>
+                <i class="fas fa-edit text-white text-lg"></i>
               </div>
               <div>
-                <h1 class="text-lg font-bold text-gray-900">智能体管理中心</h1>
-                <p class="text-[10px] text-gray-400 font-medium -mt-0.5">Agent Configuration · 配置您的评估策略</p>
+                <h1 class="text-lg font-bold text-gray-900">编辑方案</h1>
+                <p class="text-[10px] text-gray-400 font-medium -mt-0.5">方案配置 · 管理评估方案与智能体</p>
               </div>
             </div>
             {/* 面包屑导航 — 仅在方案详情视图显示 */}

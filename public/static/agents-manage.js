@@ -1,10 +1,11 @@
 // ==========================================================
-// 智能体管理中心 — agents-manage.js (v5)
+// 智能体管理中心 — agents-manage.js (v6)
 //
-// v5 两级视图设计：
-//   视图1 (view-warehouse): 方案仓库列表 — 进入即展示
-//   视图2 (view-detail):    方案详情+智能体编辑 — 点击方案后展示
-//   弹窗只有三种，均由用户主动触发
+// v6 核心改进：
+//   1. 统一命名为「编辑方案」
+//   2. 进入页面始终先看到方案仓库列表，不再自动跳转方案详情
+//   3. 点击方案卡片 → 进入方案详情页（看智能体）
+//   4. 方案详情页内编辑智能体
 // ==========================================================
 
 let allProfiles = [];
@@ -32,13 +33,6 @@ function showDetailView(profileId) {
   selectedProfileId = profileId;
   const profile = allProfiles.find(p => p.id === profileId);
   if (!profile) { showToast('方案不存在', 'error'); return; }
-
-  // 更新URL参数（不刷新页面），刷新后仍停留在方案详情
-  if (window.history.replaceState) {
-    const url = new URL(window.location);
-    url.searchParams.set('profile', profileId);
-    window.history.replaceState({}, '', url.toString());
-  }
 
   // 切换视图
   document.getElementById('view-warehouse').classList.add('hidden');
@@ -72,12 +66,6 @@ function backToWarehouse() {
   showWarehouseView();
   renderProfilesGrid();
   updateWarehouseStats();
-  // 清除URL上的 ?profile= 参数，避免刷新后又跳到详情
-  if (window.history.replaceState) {
-    const url = new URL(window.location);
-    url.searchParams.delete('profile');
-    window.history.replaceState({}, '', url.pathname);
-  }
 }
 
 function fillDetailHeader(profile) {
@@ -776,50 +764,25 @@ async function deleteProfile() {
 }
 
 // ==========================================================
-// 初始化 — 检测 ?profile= 参数，有则直接进入方案详情
+// 初始化 — 始终先展示方案仓库列表，不自动跳转
 // ==========================================================
 document.addEventListener('DOMContentLoaded', () => {
   // 确保所有弹窗关闭
   closeModal();
-  // 先显示仓库视图（如果有profile参数后面会切到详情）
+  // 始终先显示方案仓库列表
   showWarehouseView();
 
   const user = checkAgentsAuth();
   if (!user) return;
 
-  // 检查URL参数，如果有 ?profile=xxx 则加载后直接进入该方案详情
-  const urlParams = new URLSearchParams(window.location.search);
-  const targetProfileId = urlParams.get('profile');
-
-  if (targetProfileId) {
-    // 有目标方案ID — 加载后直接跳到详情视图
-    loadProfilesAndEnter(targetProfileId);
-  } else {
-    // 无参数 — 正常显示仓库列表
-    loadProfiles();
-  }
+  // 加载方案列表，始终展示仓库视图，不自动跳入任何方案详情
+  loadProfiles();
 });
 
-// 加载方案列表并直接进入指定方案的详情
+// loadProfilesAndEnter 已废弃 — 始终从方案列表开始，不再自动跳转
+// 保留此函数避免其他地方报错
 async function loadProfilesAndEnter(targetProfileId) {
-  try {
-    const data = await apiCall('/api/agents/profiles');
-    allProfiles = data.data || [];
-    // 找到目标方案
-    const targetProfile = allProfiles.find(p => p.id === targetProfileId);
-    if (targetProfile) {
-      // 直接进入方案详情（编辑智能体），不停留在仓库列表
-      showDetailView(targetProfileId);
-    } else {
-      // 方案不存在，回到仓库列表
-      showToast('指定方案不存在，显示全部方案', 'warning');
-      renderProfilesGrid();
-      updateWarehouseStats();
-    }
-  } catch(e) {
-    console.error('加载方案失败:', e);
-    showToast('加载方案列表失败', 'error');
-  }
+  await loadProfiles();
 }
 
 // ESC 关闭弹窗

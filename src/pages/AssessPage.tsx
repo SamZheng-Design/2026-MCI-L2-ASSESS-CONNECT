@@ -124,8 +124,8 @@ export const AssessPage: FC = () => {
             </div>
           </div>
           <div class="flex items-center space-x-3">
-            <a id="link-agents-manage" href="/agents" onclick="return goAgentsManage(event)" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
-              <i class="fas fa-robot mr-1.5"></i>智能体管理
+            <a id="link-agents-manage" href="/agents" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
+              <i class="fas fa-edit mr-1.5"></i>编辑方案
             </a>
             <button onclick="toggleAllDetails()" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
               <i class="fas fa-eye mr-1.5"></i><span id="toggle-all-text">展开全部</span>
@@ -343,8 +343,8 @@ export const AssessPage: FC = () => {
                   <p class="text-xs text-gray-400 font-normal mt-0.5">选择不同筛子方案 · 切换智能体工作流</p>
                 </div>
               </h3>
-              <a id="link-profile-manage" href="/agents" onclick="return goAgentsManage(event)" class="flex items-center px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-sm text-gray-600">
-                <i class="fas fa-cog mr-1.5 text-teal-500"></i>管理方案
+              <a id="link-profile-manage" href="/agents" class="flex items-center px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-sm text-gray-600">
+                <i class="fas fa-edit mr-1.5 text-teal-500"></i>编辑方案
               </a>
             </div>
             <div id="profile-selector" class="flex gap-4 overflow-x-auto pb-2" style="-webkit-overflow-scrolling: touch;">

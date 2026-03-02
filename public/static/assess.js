@@ -1077,25 +1077,20 @@ function checkUrlParams() {
 }
 
 // ==========================================================
-// 跳转到智能体管理 — 直接进入当前方案的编辑页
+// 编辑方案 — 始终跳到方案仓库列表（不带 profile 参数）
 // ==========================================================
 function goAgentsManage(event) {
-  event.preventDefault();
-  if (activeProfileId) {
-    window.location.href = '/agents?profile=' + encodeURIComponent(activeProfileId);
-  } else {
-    window.location.href = '/agents';
-  }
+  if (event) event.preventDefault();
+  window.location.href = '/agents';
   return false;
 }
 
-// 动态更新管理链接（方案切换时同步更新）
+// 链接始终指向 /agents（方案仓库列表），不附带 profile 参数
 function updateAgentsLinks() {
-  const suffix = activeProfileId ? '?profile=' + encodeURIComponent(activeProfileId) : '';
   const link1 = document.getElementById('link-agents-manage');
   const link2 = document.getElementById('link-profile-manage');
-  if (link1) link1.href = '/agents' + suffix;
-  if (link2) link2.href = '/agents' + suffix;
+  if (link1) link1.href = '/agents';
+  if (link2) link2.href = '/agents';
 }
 
 // 初始化

@@ -28,7 +28,7 @@ app.get('/assess', (c) => {
 })
 
 app.get('/agents', (c) => {
-  return c.render(<AgentsPage />, { title: 'Assess Connect · 智能体管理中心' })
+  return c.render(<AgentsPage />, { title: 'Assess Connect · 编辑方案' })
 })
 
 // ==================== 本地 Deals API ====================
