@@ -308,8 +308,15 @@ async function quickDelete(profileId) {
 }
 
 // ==========================================================
-// 渲染智能体列表（详情视图内）
+// 渲染智能体列表（详情视图内）— 内联展开卡片，不弹窗
 // ==========================================================
+const INDUSTRY_MAP = { all:'全行业', catering:'餐饮', retail:'零售', service:'服务', ecommerce:'电商', education:'教育', 'douyin-ecommerce':'抖音投流', 'light-asset':'轻资产', entertainment:'文娱' };
+const INDUSTRY_OPTIONS = '<option value="all">全行业通用</option><option value="catering">餐饮</option><option value="retail">零售</option><option value="service">生活服务</option><option value="ecommerce">电商</option><option value="education">教育培训</option><option value="douyin-ecommerce">抖音投流</option><option value="light-asset">文娱轻资产</option><option value="entertainment">文娱</option>';
+const RING_OPTIONS = '<option value="outer">外环漏斗（一票否决）</option><option value="inner">中环筛子（加权评分）</option>';
+
+// 当前展开的智能体ID
+let expandedAgentId = null;
+
 function renderAgentsList() {
   const profile = allProfiles.find(p => p.id === selectedProfileId);
   if (!profile) return;
@@ -322,13 +329,17 @@ function renderAgentsList() {
     return;
   }
 
-  const industryMap = { all:'全行业', catering:'餐饮', retail:'零售', service:'服务', ecommerce:'电商', education:'教育', 'douyin-ecommerce':'抖音投流', 'light-asset':'轻资产', entertainment:'文娱' };
-
   listEl.innerHTML = agents.map(agent => {
     const isEnabled = agent.enabled !== false;
-    const industryLabel = industryMap[agent.industry] || agent.industry;
+    const industryLabel = INDUSTRY_MAP[agent.industry] || agent.industry;
     const isTrack = agent.industry !== 'all';
-    return '<div class="agent-row flex items-center justify-between p-3 border border-gray-100 rounded-lg">' +
+    const isExpanded = expandedAgentId === agent.id;
+
+    // 摘要行
+    let html = '<div class="border border-gray-100 rounded-lg overflow-hidden mb-1 transition-all ' + (isExpanded ? 'ring-2 ring-teal-200 border-teal-300' : '') + '" id="agent-card-' + agent.id + '">';
+
+    // 头部摘要（点击展开/收起）
+    html += '<div class="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition" onclick="toggleAgentExpand(\'' + agent.id + '\')">' +
       '<div class="flex items-center space-x-3 flex-1 min-w-0">' +
       '<div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + agent.icon_color + '20">' +
       '<i class="' + agent.icon + '" style="color:' + agent.icon_color + '"></i></div>' +
@@ -340,11 +351,131 @@ function renderAgentsList() {
       '<p class="text-xs text-gray-400 truncate">' + agent.dimension + ' · 阈值 ' + agent.pass_threshold +
       (currentAgentTab === 'inner' ? ' · 权重 ' + agent.weight + '%' : '') + '</p></div></div>' +
       '<div class="flex items-center space-x-3 flex-shrink-0">' +
-      '<label class="toggle-switch"><input type="checkbox" ' + (isEnabled ? 'checked' : '') + ' onchange="toggleAgent(\'' + agent.id + '\', this.checked)"><span class="toggle-slider"></span></label>' +
-      '<button onclick="openEditAgentModal(\'' + agent.id + '\')" class="text-gray-400 hover:text-teal-500 transition" title="编辑"><i class="fas fa-pen text-sm"></i></button>' +
-      '<button onclick="removeAgent(\'' + agent.id + '\')" class="text-gray-400 hover:text-red-500 transition" title="删除"><i class="fas fa-trash text-sm"></i></button>' +
+      '<label class="toggle-switch" onclick="event.stopPropagation()"><input type="checkbox" ' + (isEnabled ? 'checked' : '') + ' onchange="toggleAgent(\'' + agent.id + '\', this.checked)"><span class="toggle-slider"></span></label>' +
+      '<button onclick="event.stopPropagation(); removeAgent(\'' + agent.id + '\')" class="text-gray-400 hover:text-red-500 transition" title="删除"><i class="fas fa-trash text-sm"></i></button>' +
+      '<i class="fas fa-chevron-down text-gray-400 text-sm transition-transform ' + (isExpanded ? 'rotate-180' : '') + '"></i>' +
       '</div></div>';
+
+    // 展开区域 — 内联编辑表单
+    html += '<div class="' + (isExpanded ? '' : 'hidden') + ' border-t bg-gray-50/50 p-4" id="agent-expand-' + agent.id + '">' +
+      '<div class="grid grid-cols-2 gap-3">' +
+      // 名称
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">智能体名称 <span class="text-red-400">*</span></label>' +
+      '<input id="inline-name-' + agent.id + '" type="text" value="' + escapeAttr(agent.name) + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400 bg-white" />' +
+      '</div>' +
+      // 维度
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">评估维度</label>' +
+      '<input id="inline-dim-' + agent.id + '" type="text" value="' + escapeAttr(agent.dimension) + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" />' +
+      '</div>' +
+      // 环型
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">环型</label>' +
+      '<select id="inline-ring-' + agent.id + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white">' + RING_OPTIONS.replace('value="' + agent.ring_type + '"', 'value="' + agent.ring_type + '" selected') + '</select>' +
+      '</div>' +
+      // 行业
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">适用行业</label>' +
+      '<select id="inline-ind-' + agent.id + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white">' + INDUSTRY_OPTIONS.replace('value="' + agent.industry + '"', 'value="' + agent.industry + '" selected') + '</select>' +
+      '</div>' +
+      // 阈值
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">通过阈值 (0-100)</label>' +
+      '<input id="inline-thr-' + agent.id + '" type="number" min="0" max="100" value="' + agent.pass_threshold + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" />' +
+      '</div>' +
+      // 权重
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">权重 (%，仅中环有效)</label>' +
+      '<input id="inline-wt-' + agent.id + '" type="number" min="0" max="100" value="' + (agent.weight || 0) + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" />' +
+      '</div>' +
+      // 图标
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">图标 (FontAwesome)</label>' +
+      '<input id="inline-icon-' + agent.id + '" type="text" value="' + escapeAttr(agent.icon) + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" />' +
+      '</div>' +
+      // 图标颜色
+      '<div>' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>' +
+      '<input id="inline-clr-' + agent.id + '" type="color" value="' + (agent.icon_color || '#5DC4B3') + '" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer bg-white" />' +
+      '</div>' +
+      // 描述（全宽）
+      '<div class="col-span-2">' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>' +
+      '<textarea id="inline-desc-' + agent.id + '" rows="2" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none bg-white">' + escapeHtmlText(agent.description || '') + '</textarea>' +
+      '</div>' +
+      // AI提示词（全宽）
+      '<div class="col-span-2">' +
+      '<label class="text-xs font-medium text-gray-500 mb-1 block">AI 提示词模板</label>' +
+      '<textarea id="inline-prompt-' + agent.id + '" rows="3" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none font-mono bg-white">' + escapeHtmlText(agent.prompt_template || '') + '</textarea>' +
+      '</div>' +
+      '</div>' +
+      // 保存按钮
+      '<div class="flex justify-end mt-3 pt-3 border-t border-gray-200">' +
+      '<button onclick="saveInlineAgent(\'' + agent.id + '\')" class="btn-primary text-sm"><i class="fas fa-save mr-1"></i>保存修改</button>' +
+      '</div>' +
+      '</div>';
+
+    html += '</div>';
+    return html;
   }).join('');
+}
+
+// 展开/收起智能体卡片
+function toggleAgentExpand(agentId) {
+  if (expandedAgentId === agentId) {
+    // 收起
+    expandedAgentId = null;
+  } else {
+    // 展开
+    expandedAgentId = agentId;
+  }
+  renderAgentsList();
+  // 展开后滚动到该卡片
+  if (expandedAgentId) {
+    setTimeout(() => {
+      const card = document.getElementById('agent-card-' + agentId);
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+}
+
+// 内联保存智能体
+async function saveInlineAgent(agentId) {
+  const name = document.getElementById('inline-name-' + agentId)?.value.trim();
+  if (!name) { showToast('智能体名称不能为空', 'error'); return; }
+
+  const agentData = {
+    name,
+    dimension: document.getElementById('inline-dim-' + agentId)?.value.trim() || name,
+    ring_type: document.getElementById('inline-ring-' + agentId)?.value,
+    industry: document.getElementById('inline-ind-' + agentId)?.value,
+    pass_threshold: parseInt(document.getElementById('inline-thr-' + agentId)?.value) || 50,
+    weight: parseInt(document.getElementById('inline-wt-' + agentId)?.value) || 0,
+    icon: document.getElementById('inline-icon-' + agentId)?.value.trim() || 'fas fa-robot',
+    icon_color: document.getElementById('inline-clr-' + agentId)?.value || PRIMARY,
+    description: document.getElementById('inline-desc-' + agentId)?.value.trim(),
+    prompt_template: document.getElementById('inline-prompt-' + agentId)?.value.trim(),
+    enabled: true
+  };
+
+  try {
+    await apiCall('/api/agents/profiles/' + selectedProfileId + '/agents/' + agentId, {
+      method: 'PUT', body: JSON.stringify(agentData)
+    });
+    showToast('智能体已保存', 'success');
+    await loadProfiles();
+  } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
+}
+
+// HTML属性转义
+function escapeAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escapeHtmlText(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function switchAgentTab(tab) {
@@ -488,7 +619,84 @@ function openEditAgentModal(agentId) {
   openModal('modal-edit-agent');
 }
 
-function openAddAgentModal() { openEditAgentModal(null); }
+function openAddAgentModal() {
+  // 改为内联新建：在列表顶部插入一个空白编辑卡片
+  const profile = allProfiles.find(p => p.id === selectedProfileId);
+  if (!profile) { showToast('请先选择方案', 'warning'); return; }
+
+  const newId = 'new-' + Date.now();
+  const listEl = document.getElementById('agents-list');
+
+  // 如果已经有新建表单，先移除
+  const existingNew = document.getElementById('agent-new-form');
+  if (existingNew) { existingNew.remove(); return; }
+
+  const formHtml = '<div id="agent-new-form" class="border-2 border-teal-300 rounded-lg overflow-hidden mb-3 ring-2 ring-teal-100 bg-teal-50/30">' +
+    '<div class="p-3 bg-teal-50 border-b border-teal-200 flex items-center justify-between">' +
+    '<h4 class="font-semibold text-sm text-teal-700"><i class="fas fa-plus-circle mr-1.5"></i>新建智能体</h4>' +
+    '<button onclick="document.getElementById(\'agent-new-form\').remove()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>' +
+    '</div>' +
+    '<div class="p-4">' +
+    '<div class="grid grid-cols-2 gap-3">' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">智能体名称 <span class="text-red-400">*</span></label>' +
+    '<input id="new-agent-name" type="text" placeholder="例：资金规模审核" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" /></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">评估维度</label>' +
+    '<input id="new-agent-dim" type="text" placeholder="例：资金规模" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" /></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">环型</label>' +
+    '<select id="new-agent-ring" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white">' + RING_OPTIONS.replace('value="' + currentAgentTab + '"', 'value="' + currentAgentTab + '" selected') + '</select></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">适用行业</label>' +
+    '<select id="new-agent-ind" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white">' + INDUSTRY_OPTIONS + '</select></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">通过阈值 (0-100)</label>' +
+    '<input id="new-agent-thr" type="number" min="0" max="100" value="' + (currentAgentTab === 'outer' ? 60 : 50) + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" /></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">权重 (%，仅中环)</label>' +
+    '<input id="new-agent-wt" type="number" min="0" max="100" value="' + (currentAgentTab === 'inner' ? 10 : 0) + '" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" /></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">图标</label>' +
+    '<input id="new-agent-icon" type="text" value="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 bg-white" /></div>' +
+    '<div><label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>' +
+    '<input id="new-agent-clr" type="color" value="#5DC4B3" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer bg-white" /></div>' +
+    '<div class="col-span-2"><label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>' +
+    '<textarea id="new-agent-desc" rows="2" placeholder="智能体职责描述" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none bg-white"></textarea></div>' +
+    '<div class="col-span-2"><label class="text-xs font-medium text-gray-500 mb-1 block">AI 提示词模板</label>' +
+    '<textarea id="new-agent-prompt" rows="3" placeholder="AI评估时使用的prompt" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none font-mono bg-white"></textarea></div>' +
+    '</div>' +
+    '<div class="flex justify-end mt-3 pt-3 border-t border-gray-200 space-x-2">' +
+    '<button onclick="document.getElementById(\'agent-new-form\').remove()" class="btn-secondary text-sm">取消</button>' +
+    '<button onclick="doCreateInlineAgent()" class="btn-primary text-sm"><i class="fas fa-plus mr-1"></i>创建</button>' +
+    '</div></div></div>';
+
+  listEl.insertAdjacentHTML('afterbegin', formHtml);
+  document.getElementById('new-agent-name')?.focus();
+  document.getElementById('agent-new-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function doCreateInlineAgent() {
+  const name = document.getElementById('new-agent-name')?.value.trim();
+  if (!name) { showToast('请输入智能体名称', 'error'); return; }
+
+  const agentData = {
+    id: 'custom-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+    name,
+    dimension: document.getElementById('new-agent-dim')?.value.trim() || name,
+    ring_type: document.getElementById('new-agent-ring')?.value,
+    industry: document.getElementById('new-agent-ind')?.value,
+    pass_threshold: parseInt(document.getElementById('new-agent-thr')?.value) || 50,
+    weight: parseInt(document.getElementById('new-agent-wt')?.value) || 0,
+    icon: document.getElementById('new-agent-icon')?.value.trim() || 'fas fa-robot',
+    icon_color: document.getElementById('new-agent-clr')?.value || PRIMARY,
+    description: document.getElementById('new-agent-desc')?.value.trim(),
+    prompt_template: document.getElementById('new-agent-prompt')?.value.trim(),
+    enabled: true
+  };
+
+  try {
+    await apiCall('/api/agents/profiles/' + selectedProfileId + '/agents', {
+      method: 'POST', body: JSON.stringify(agentData)
+    });
+    showToast('智能体已创建', 'success');
+    expandedAgentId = null;
+    await loadProfiles();
+  } catch(e) { showToast('创建失败: ' + e.message, 'error'); }
+}
 
 async function doSaveAgent() {
   const name = document.getElementById('inp-agent-name').value.trim();
