@@ -48,7 +48,7 @@ export const defaultOuterAgents: Agent[] = [
     pass_threshold: 60,
     weight: 0,
     industry: 'all',
-    prompt_template: '你是一位资深合规审查专家。请对以下投资标的进行合规性审查，重点关注：1)营业执照与经营范围合规 2)特许经营资质 3)税务登记合规 4)劳动用工合规 5)食品安全/卫生许可（如适用）。对每项给出"通过/不通过"判定，并说明理由。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -62,7 +62,7 @@ export const defaultOuterAgents: Agent[] = [
     pass_threshold: 55,
     weight: 0,
     industry: 'all',
-    prompt_template: '你是一位专业风控分析师。请对以下投资标的进行风险评估，覆盖：1)政策风险 2)市场风险 3)运营风险 4)信用/违约风险 5)流动性风险。对每项量化评分并给出整体风险等级（低/中/高）。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -76,7 +76,7 @@ export const defaultOuterAgents: Agent[] = [
     pass_threshold: 60,
     weight: 0,
     industry: 'all',
-    prompt_template: '你是一位财务分析专家。请评估以下项目的财务健康状况：1)营收真实性与可验证性 2)现金流充裕度 3)负债率与偿债能力 4)利润率合理性 5)财务数据一致性。每项评分，整体判断是否通过财务健康基线。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -90,7 +90,7 @@ export const defaultOuterAgents: Agent[] = [
     pass_threshold: 55,
     weight: 0,
     industry: 'all',
-    prompt_template: '你是一位专业法律顾问。请审查以下投资项目的法律风险：1)合同条款合理性 2)知识产权归属 3)历史诉讼与纠纷 4)股权结构清晰度 5)担保与抵押安排。给出法律风险等级和改进建议。',
+    prompt_template: '',
     enabled: true
   }
 ];
@@ -108,7 +108,7 @@ export const defaultInnerAgentsGeneral: Agent[] = [
     pass_threshold: 50,
     weight: 15,
     industry: 'all',
-    prompt_template: '你是一位市场研究专家。请分析以下项目的市场环境：1)目标市场规模与增长率 2)竞争格局与差异化 3)消费者需求趋势 4)市场进入壁垒 5)区域市场特征。量化评分并给出前景预判。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -122,7 +122,7 @@ export const defaultInnerAgentsGeneral: Agent[] = [
     pass_threshold: 50,
     weight: 15,
     industry: 'all',
-    prompt_template: '你是一位运营管理专家。请评估以下项目的运营效率：1)人效（人均产出） 2)坪效（单位面积收入） 3)库存/物料管理 4)流程标准化程度 5)数字化管理水平。量化评分并给出优化建议。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -136,7 +136,7 @@ export const defaultInnerAgentsGeneral: Agent[] = [
     pass_threshold: 50,
     weight: 15,
     industry: 'all',
-    prompt_template: '你是一位品牌战略专家。请评估以下项目的品牌护城河：1)品牌知名度与美誉度 2)用户复购率与忠诚度 3)供应链控制力 4)差异化竞争优势 5)网络效应/规模效应。量化评分并判断护城河深度。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -150,7 +150,7 @@ export const defaultInnerAgentsGeneral: Agent[] = [
     pass_threshold: 50,
     weight: 20,
     industry: 'all',
-    prompt_template: '你是一位投资回报分析专家。请评估以下项目的盈利模型：1)收入结构与多元化 2)利润率可持续性 3)投资回报模型合理性 4)IRR/ROI测算准确性 5)现金流回收可预测性。量化评分并给出投资建议。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -164,7 +164,7 @@ export const defaultInnerAgentsGeneral: Agent[] = [
     pass_threshold: 50,
     weight: 10,
     industry: 'all',
-    prompt_template: '你是一位人力资源与管理评估专家。请评估以下项目的团队能力：1)管理层从业经验 2)团队执行力 3)行业资源与人脉 4)人才梯队建设 5)激励与培训体系。量化评分并给出评价。',
+    prompt_template: '',
     enabled: true
   }
 ];
@@ -183,7 +183,7 @@ export const defaultInnerAgentsTrack: Agent[] = [
     pass_threshold: 60,
     weight: 15,
     industry: 'catering',
-    prompt_template: '你是一位食品安全专家。请专项评估以下餐饮项目：1)食品安全管理体系 2)供应链溯源 3)HACCP执行 4)员工卫生培训 5)食材储存与保鲜。量化评分。',
+    prompt_template: '',
     enabled: true
   },
   {
@@ -197,7 +197,7 @@ export const defaultInnerAgentsTrack: Agent[] = [
     pass_threshold: 50,
     weight: 10,
     industry: 'catering',
-    prompt_template: '你是一位餐饮选址专家。请评估以下门店选址：1)周边客流量 2)竞品密度 3)租售比合理性 4)交通便利性 5)目标客群匹配度。量化评分。',
+    prompt_template: '',
     enabled: true
   },
   // -- 零售赛道 --
@@ -212,7 +212,7 @@ export const defaultInnerAgentsTrack: Agent[] = [
     pass_threshold: 55,
     weight: 15,
     industry: 'retail',
-    prompt_template: '你是一位供应链管理专家。请评估以下零售项目：1)供应链效率 2)库存周转天数 3)采购成本控制 4)物流网络覆盖 5)缺货率与滞销率。量化评分。',
+    prompt_template: '',
     enabled: true
   },
   // -- 服务赛道 --
@@ -227,7 +227,7 @@ export const defaultInnerAgentsTrack: Agent[] = [
     pass_threshold: 50,
     weight: 15,
     industry: 'service',
-    prompt_template: '你是一位客户关系管理专家。请评估以下服务业项目：1)客户留存率 2)复购率 3)会员体系有效性 4)客户满意度 5)口碑传播力度。量化评分。',
+    prompt_template: '',
     enabled: true
   },
   // -- 电商赛道 --
@@ -242,7 +242,7 @@ export const defaultInnerAgentsTrack: Agent[] = [
     pass_threshold: 50,
     weight: 15,
     industry: 'ecommerce',
-    prompt_template: '你是一位电商运营专家。请评估以下电商项目：1)获客成本(CAC) 2)转化率 3)复购率 4)流量来源多元化 5)ROI投放效率。量化评分。',
+    prompt_template: '',
     enabled: true
   },
   // -- 教育培训赛道 --
@@ -257,7 +257,7 @@ export const defaultInnerAgentsTrack: Agent[] = [
     pass_threshold: 50,
     weight: 15,
     industry: 'education',
-    prompt_template: '你是一位教育行业专家。请评估以下教育培训项目：1)课程体系完善度 2)师资力量 3)学员满意度 4)教学成果量化 5)续费率。量化评分。',
+    prompt_template: '',
     enabled: true
   }
 ];
