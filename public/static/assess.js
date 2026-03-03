@@ -1111,6 +1111,8 @@ function pmShowProfilesView() {
   document.getElementById('pm-view-profiles').classList.remove('hidden');
   document.getElementById('pm-view-detail').classList.add('hidden');
   document.getElementById('pm-view-edit-agent').classList.add('hidden');
+  const createView = document.getElementById('pm-view-create-profile');
+  if (createView) createView.classList.add('hidden');
   document.getElementById('pm-breadcrumb').classList.add('hidden');
   document.getElementById('pm-title').textContent = '我的评估方案';
   document.getElementById('pm-subtitle').textContent = '选择方案 · 管理智能体配置';
@@ -1229,10 +1231,16 @@ function pmRenderProfilesGrid() {
       '<h4 class="font-semibold text-sm text-gray-800 truncate">' + p.name + '</h4>' +
       '<p class="text-[10px] text-gray-400 line-clamp-1">' + (p.description || '暂无描述') + '</p></div>' +
       '<i class="fas fa-chevron-right text-gray-300 text-sm flex-shrink-0"></i></div>' +
-      '<div class="grid grid-cols-3 gap-2 text-center">' +
+      '<div class="grid grid-cols-3 gap-2 text-center mb-3">' +
       '<div class="bg-red-50 rounded-lg py-1.5"><p class="text-sm font-bold text-red-600">' + outer + '</p><p class="text-[9px] text-gray-500">外环</p></div>' +
       '<div class="bg-blue-50 rounded-lg py-1.5"><p class="text-sm font-bold text-blue-600">' + inner + '</p><p class="text-[9px] text-gray-500">中环</p></div>' +
       '<div class="bg-emerald-50 rounded-lg py-1.5"><p class="text-sm font-bold text-emerald-600">' + enabled + '</p><p class="text-[9px] text-gray-500">启用</p></div>' +
+      '</div>' +
+      // 操作栏
+      '<div class="flex items-center justify-end space-x-1 pt-2 border-t border-gray-100">' +
+      (!p.is_default ? '<button onclick="pmQuickSetDefault(\'' + p.id + '\', event)" class="text-[10px] px-2 py-1 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded transition" title="设为默认"><i class="fas fa-star mr-0.5"></i>默认</button>' : '') +
+      '<button onclick="pmQuickCloneProfile(\'' + p.id + '\', event)" class="text-[10px] px-2 py-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition" title="克隆"><i class="fas fa-copy mr-0.5"></i>克隆</button>' +
+      (!p.is_default ? '<button onclick="pmQuickDeleteProfile(\'' + p.id + '\', event)" class="text-[10px] px-2 py-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="删除"><i class="fas fa-trash-alt mr-0.5"></i>删除</button>' : '') +
       '</div></div>';
   }).join('');
 }
@@ -1269,10 +1277,10 @@ function pmRenderAgentsList() {
       '<p class="text-[11px] text-gray-400 truncate">' + agent.dimension + ' · 阈值 ' + agent.pass_threshold +
       (pmCurrentTab === 'inner' ? ' · 权重 ' + agent.weight + '%' : '') + '</p></div></div>' +
       // 右侧：操作
-      '<div class="flex items-center space-x-3 flex-shrink-0">' +
+      '<div class="flex items-center space-x-2 flex-shrink-0">' +
       '<label class="pm-toggle" onclick="event.stopPropagation()"><input type="checkbox" ' + (isEnabled ? 'checked' : '') + ' onchange="pmToggleAgent(\'' + agent.id + '\', this.checked)"><span class="pm-toggle-slider"></span></label>' +
       '<button onclick="pmShowEditAgentView(\'' + agent.id + '\')" class="text-gray-400 hover:text-teal-500 transition" title="编辑"><i class="fas fa-pen text-xs"></i></button>' +
-      '<i class="fas fa-chevron-right text-gray-300 text-xs"></i>' +
+      '<button onclick="pmDeleteAgent(\'' + agent.id + '\', event)" class="text-gray-400 hover:text-red-500 transition" title="删除"><i class="fas fa-trash-alt text-xs"></i></button>' +
       '</div></div></div>';
   }).join('');
 }
@@ -1316,16 +1324,203 @@ async function pmSaveAgent() {
   };
 
   try {
-    await apiCall('/api/agents/profiles/' + pmCurrentProfileId + '/agents/' + pmEditingAgentId, {
-      method: 'PUT', body: JSON.stringify(agentData)
-    });
-    showToast('智能体已保存', 'success');
+    if (pmEditingAgentId === '__new__') {
+      // 新建智能体
+      agentData.id = 'agent-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+      await apiCall('/api/agents/profiles/' + pmCurrentProfileId + '/agents', {
+        method: 'POST', body: JSON.stringify(agentData)
+      });
+      showToast('智能体「' + name + '」已添加', 'success');
+    } else {
+      // 更新已有智能体
+      await apiCall('/api/agents/profiles/' + pmCurrentProfileId + '/agents/' + pmEditingAgentId, {
+        method: 'PUT', body: JSON.stringify(agentData)
+      });
+      showToast('智能体已保存', 'success');
+    }
     // 刷新方案数据
     const data = await apiCall('/api/agents/profiles');
     allProfiles = data.data || [];
     // 回到方案详情
     pmShowDetailView(pmCurrentProfileId);
   } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
+}
+
+// ==========================================================
+// 方案管理 — 新建 / 删除方案
+// ==========================================================
+
+// 打开新建方案视图
+function pmOpenCreateProfile() {
+  document.getElementById('pm-view-profiles').classList.add('hidden');
+  document.getElementById('pm-view-detail').classList.add('hidden');
+  document.getElementById('pm-view-edit-agent').classList.add('hidden');
+  const createView = document.getElementById('pm-view-create-profile');
+  if (createView) createView.classList.remove('hidden');
+  document.getElementById('pm-breadcrumb').classList.remove('hidden');
+  document.getElementById('pm-breadcrumb-name').textContent = '新建方案';
+  document.getElementById('pm-title').textContent = '新建方案';
+  document.getElementById('pm-subtitle').textContent = '创建新的评估方案';
+  // 清空表单
+  const nameInput = document.getElementById('pm-new-profile-name');
+  const descInput = document.getElementById('pm-new-profile-desc');
+  const templateSelect = document.getElementById('pm-new-profile-template');
+  if (nameInput) nameInput.value = '';
+  if (descInput) descInput.value = '';
+  if (templateSelect) templateSelect.value = 'default-profile';
+}
+
+// 执行创建方案
+async function pmDoCreateProfile() {
+  const name = document.getElementById('pm-new-profile-name').value.trim();
+  if (!name) { showToast('方案名称不能为空', 'error'); return; }
+  const description = (document.getElementById('pm-new-profile-desc').value || '').trim();
+  const template_id = document.getElementById('pm-new-profile-template').value;
+
+  try {
+    const result = await apiCall('/api/agents/profiles', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, template_id })
+    });
+    showToast('方案「' + name + '」创建成功！', 'success');
+    // 刷新方案列表
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    // 回到方案列表
+    pmBackToProfiles();
+  } catch(e) {
+    showToast('创建失败: ' + e.message, 'error');
+  }
+}
+
+// 删除方案（从方案详情页调用）
+async function pmDeleteProfile() {
+  if (!pmCurrentProfileId) return;
+  const profile = allProfiles.find(p => p.id === pmCurrentProfileId);
+  if (!profile) return;
+
+  if (profile.is_default) {
+    showToast('默认方案不能删除，请先将其他方案设为默认', 'error');
+    return;
+  }
+
+  if (!confirm('确定要删除方案「' + profile.name + '」吗？\n此操作不可恢复，方案内所有智能体配置将一并删除。')) return;
+
+  try {
+    await apiCall('/api/agents/profiles/' + pmCurrentProfileId, { method: 'DELETE' });
+    showToast('方案「' + profile.name + '」已删除', 'success');
+    // 刷新方案列表
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    pmCurrentProfileId = null;
+    pmBackToProfiles();
+  } catch(e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
+}
+
+// 从方案卡片上快速删除方案（阻止冒泡）
+async function pmQuickDeleteProfile(profileId, event) {
+  if (event) event.stopPropagation();
+  const profile = allProfiles.find(p => p.id === profileId);
+  if (!profile) return;
+
+  if (profile.is_default) {
+    showToast('默认方案不能删除', 'error');
+    return;
+  }
+
+  if (!confirm('确定要删除方案「' + profile.name + '」吗？')) return;
+
+  try {
+    await apiCall('/api/agents/profiles/' + profileId, { method: 'DELETE' });
+    showToast('方案已删除', 'success');
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    pmRenderProfilesGrid();
+  } catch(e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
+}
+
+// 快速克隆方案（从卡片操作）
+async function pmQuickCloneProfile(profileId, event) {
+  if (event) event.stopPropagation();
+  try {
+    const result = await apiCall('/api/agents/profiles/' + profileId + '/clone', { method: 'POST' });
+    showToast('方案已克隆', 'success');
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    pmRenderProfilesGrid();
+  } catch(e) {
+    showToast('克隆失败: ' + e.message, 'error');
+  }
+}
+
+// 快速设为默认（从卡片操作）
+async function pmQuickSetDefault(profileId, event) {
+  if (event) event.stopPropagation();
+  try {
+    await apiCall('/api/agents/profiles/' + profileId + '/default', { method: 'POST' });
+    showToast('已设为默认方案', 'success');
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    pmRenderProfilesGrid();
+  } catch(e) {
+    showToast('操作失败: ' + e.message, 'error');
+  }
+}
+
+// ==========================================================
+// 智能体管理 — 添加 / 删除智能体
+// ==========================================================
+
+// 添加新智能体（进入编辑表单，标记为新建模式）
+function pmAddAgent() {
+  if (!pmCurrentProfileId) return;
+  pmEditingAgentId = '__new__'; // 特殊标记，表示新建模式
+
+  document.getElementById('pm-view-profiles').classList.add('hidden');
+  document.getElementById('pm-view-detail').classList.add('hidden');
+  document.getElementById('pm-view-edit-agent').classList.remove('hidden');
+
+  document.getElementById('pm-title').textContent = '添加智能体';
+  document.getElementById('pm-subtitle').textContent = '新建智能体';
+  document.getElementById('pm-edit-agent-title').innerHTML = '<i class="fas fa-plus-circle mr-1.5 text-teal-500"></i>添加新智能体';
+
+  // 清空表单，设置默认值
+  document.getElementById('pm-agent-name').value = '';
+  document.getElementById('pm-agent-dimension').value = '';
+  document.getElementById('pm-agent-ring').value = pmCurrentTab || 'outer';
+  document.getElementById('pm-agent-industry').value = 'all';
+  document.getElementById('pm-agent-threshold').value = '60';
+  document.getElementById('pm-agent-weight').value = '0';
+  document.getElementById('pm-agent-icon').value = 'fas fa-robot';
+  document.getElementById('pm-agent-iconcolor').value = '#5DC4B3';
+}
+
+// 删除智能体
+async function pmDeleteAgent(agentId, event) {
+  if (event) event.stopPropagation();
+  if (!pmCurrentProfileId) return;
+
+  const profile = allProfiles.find(p => p.id === pmCurrentProfileId);
+  if (!profile) return;
+  const agent = profile.agents.find(a => a.id === agentId);
+  if (!agent) return;
+
+  if (!confirm('确定要删除智能体「' + agent.name + '」吗？')) return;
+
+  try {
+    await apiCall('/api/agents/profiles/' + pmCurrentProfileId + '/agents/' + agentId, { method: 'DELETE' });
+    showToast('智能体「' + agent.name + '」已删除', 'success');
+    // 刷新数据
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    pmShowDetailView(pmCurrentProfileId);
+  } catch(e) {
+    showToast('删除失败: ' + e.message, 'error');
+  }
 }
 
 // 链接始终指向弹窗模式，不再需要

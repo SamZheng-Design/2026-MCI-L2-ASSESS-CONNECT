@@ -626,6 +626,10 @@ export const AssessPage: FC = () => {
           <div class="flex-1 overflow-y-auto" style="min-height: 400px;">
             {/* ── 第一级：方案列表 ── */}
             <div id="pm-view-profiles" class="p-5">
+              <div class="flex items-center justify-between mb-4">
+                <p class="text-xs text-gray-400"><i class="fas fa-mouse-pointer mr-1"></i>点击方案卡片查看智能体配置</p>
+                <button onclick="pmOpenCreateProfile()" class="btn-primary text-xs"><i class="fas fa-plus mr-1"></i>新建方案</button>
+              </div>
               <div id="pm-profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div class="text-center py-8 text-gray-400 col-span-3">
                   <i class="fas fa-spinner fa-spin text-xl mb-2"></i>
@@ -652,6 +656,9 @@ export const AssessPage: FC = () => {
                   <div class="flex items-center space-x-2">
                     <button onclick="pmBackToProfiles()" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-xs border border-gray-200">
                       <i class="fas fa-arrow-left mr-1"></i>返回
+                    </button>
+                    <button id="pm-btn-delete-profile" onclick="pmDeleteProfile()" class="px-3 py-1.5 bg-white text-red-500 rounded-lg hover:bg-red-50 transition text-xs border border-red-200">
+                      <i class="fas fa-trash-alt mr-1"></i>删除方案
                     </button>
                   </div>
                 </div>
@@ -683,6 +690,8 @@ export const AssessPage: FC = () => {
                 <button onclick="pmSwitchTab('inner')" class="pm-tab-btn" data-tab="inner">
                   <i class="fas fa-filter mr-1"></i>中环筛子 (<span id="pm-tab-inner-count">0</span>)
                 </button>
+                <div class="flex-1"></div>
+                <button onclick="pmAddAgent()" class="btn-primary text-xs"><i class="fas fa-plus mr-1"></i>添加智能体</button>
               </div>
 
               {/* 智能体列表 */}
@@ -755,6 +764,41 @@ export const AssessPage: FC = () => {
                 <div class="flex justify-end mt-5 pt-4 border-t space-x-3">
                   <button onclick="pmBackToDetail()" class="px-4 py-2 bg-white text-gray-600 rounded-lg hover:bg-gray-50 text-sm border border-gray-200">取消</button>
                   <button onclick="pmSaveAgent()" class="btn-primary text-sm"><i class="fas fa-save mr-1"></i>保存</button>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 新建方案视图 ── */}
+            <div id="pm-view-create-profile" class="hidden">
+              <div class="p-4 bg-gray-50 border-b flex items-center space-x-2">
+                <button onclick="pmBackToProfiles()" class="text-gray-400 hover:text-gray-600 transition">
+                  <i class="fas fa-arrow-left"></i>
+                </button>
+                <h4 class="font-semibold text-gray-800 text-sm">
+                  <i class="fas fa-plus-circle mr-1.5 text-teal-500"></i>新建评估方案
+                </h4>
+              </div>
+              <div class="p-5 space-y-4 max-w-lg mx-auto">
+                <div>
+                  <label class="text-xs font-medium text-gray-500 mb-1 block">方案名称 <span class="text-red-400">*</span></label>
+                  <input id="pm-new-profile-name" type="text" placeholder="例：我的餐饮专项方案" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-gray-500 mb-1 block">描述</label>
+                  <textarea id="pm-new-profile-desc" rows={2} placeholder="方案适用场景说明" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 resize-none"></textarea>
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-gray-500 mb-1 block">基于模板</label>
+                  <select id="pm-new-profile-template" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
+                    <option value="default-profile">标准评估方案</option>
+                    <option value="conservative-profile">保守型评估方案</option>
+                    <option value="aggressive-profile">激进型评估方案</option>
+                    <option value="empty">空白方案（从零开始）</option>
+                  </select>
+                </div>
+                <div class="flex justify-end pt-4 border-t space-x-3">
+                  <button onclick="pmBackToProfiles()" class="px-4 py-2 bg-white text-gray-600 rounded-lg hover:bg-gray-50 text-sm border border-gray-200">取消</button>
+                  <button onclick="pmDoCreateProfile()" class="btn-primary text-sm"><i class="fas fa-check mr-1"></i>创建</button>
                 </div>
               </div>
             </div>
