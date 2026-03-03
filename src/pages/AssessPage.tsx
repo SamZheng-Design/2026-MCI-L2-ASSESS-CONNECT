@@ -88,6 +88,23 @@ export const AssessPage: FC = () => {
 
         .rotate-180 { transform: rotate(180deg); }
 
+        /* 方案管理弹窗内的Tab样式 */
+        .pm-tab-btn { padding: 0.375rem 0.75rem; font-size: 0.8rem; font-weight: 500; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; border: none; }
+        .pm-tab-btn.active { background: var(--primary-500); color: white; }
+        .pm-tab-btn:not(.active) { background: white; color: #6B7280; border: 1px solid #E5E7EB; }
+        .pm-tab-btn:not(.active):hover { background: #F3F4F6; }
+        /* 方案卡片 */
+        .pm-profile-card { background: #fff; border-radius: 0.75rem; border: 1px solid #E5E7EB; padding: 1rem; cursor: pointer; transition: all 0.25s; position: relative; }
+        .pm-profile-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.06); }
+        .pm-profile-card .pm-default-badge { position: absolute; top: -1px; right: -1px; background: var(--primary-500); color: white; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 0 0.7rem 0 0.5rem; }
+        /* 智能体开关 */
+        .pm-toggle { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .pm-toggle input { opacity: 0; width: 0; height: 0; }
+        .pm-toggle-slider { position: absolute; cursor: pointer; inset: 0; background: #D1D5DB; border-radius: 20px; transition: 0.3s; }
+        .pm-toggle-slider::before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+        .pm-toggle input:checked + .pm-toggle-slider { background: var(--primary-500); }
+        .pm-toggle input:checked + .pm-toggle-slider::before { transform: translateX(16px); }
+
         /* 顶部导航条 */
         .assess-topbar {
           background: rgba(255,255,255,0.85);
@@ -124,9 +141,9 @@ export const AssessPage: FC = () => {
             </div>
           </div>
           <div class="flex items-center space-x-3">
-            <a id="link-agents-manage" href="/agents" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
+            <button onclick="openProfileManagerModal()" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
               <i class="fas fa-edit mr-1.5"></i>编辑方案
-            </a>
+            </button>
             <button onclick="toggleAllDetails()" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm border border-gray-200">
               <i class="fas fa-eye mr-1.5"></i><span id="toggle-all-text">展开全部</span>
             </button>
@@ -343,9 +360,9 @@ export const AssessPage: FC = () => {
                   <p class="text-xs text-gray-400 font-normal mt-0.5">选择不同筛子方案 · 切换智能体工作流</p>
                 </div>
               </h3>
-              <a id="link-profile-manage" href="/agents" class="flex items-center px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-sm text-gray-600">
+              <button onclick="openProfileManagerModal()" class="flex items-center px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-sm text-gray-600">
                 <i class="fas fa-edit mr-1.5 text-teal-500"></i>编辑方案
-              </a>
+              </button>
             </div>
             <div id="profile-selector" class="flex gap-4 overflow-x-auto pb-2" style="-webkit-overflow-scrolling: touch;">
               <div class="text-sm text-gray-400 py-6 text-center w-full"><i class="fas fa-spinner fa-spin mr-1"></i>加载评估方案...</div>
@@ -577,6 +594,171 @@ export const AssessPage: FC = () => {
             <button onclick="closeImprovementPopup()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
           </div>
           <div id="improvement-popup-content" class="p-6 overflow-y-auto flex-1"></div>
+        </div>
+      </div>
+
+      {/* ── 弹窗：方案管理中心（三级导航） ── */}
+      <div id="profile-manager-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.5)" onclick="if(event.target===this)closeProfileManager()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 flex flex-col" style="max-height: 85vh;">
+          {/* 弹窗头部 */}
+          <div class="p-4 border-b flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center space-x-3">
+              <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
+                <i class="fas fa-layer-group text-white"></i>
+              </div>
+              <div>
+                <h3 id="pm-title" class="font-bold text-gray-800">我的评估方案</h3>
+                <p id="pm-subtitle" class="text-[11px] text-gray-400">选择方案 · 管理智能体配置</p>
+              </div>
+              {/* 面包屑 */}
+              <div id="pm-breadcrumb" class="hidden ml-3 pl-3 border-l border-gray-200 text-xs text-gray-400">
+                <a onclick="pmBackToProfiles()" class="text-teal-500 cursor-pointer hover:underline">方案列表</a>
+                <span class="mx-1.5">/</span>
+                <span id="pm-breadcrumb-name" class="text-gray-600 font-medium"></span>
+              </div>
+            </div>
+            <button onclick="closeProfileManager()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition">
+              <i class="fas fa-times text-lg"></i>
+            </button>
+          </div>
+
+          {/* 弹窗内容区 - 可滚动 */}
+          <div class="flex-1 overflow-y-auto" style="min-height: 400px;">
+            {/* ── 第一级：方案列表 ── */}
+            <div id="pm-view-profiles" class="p-5">
+              <div id="pm-profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="text-center py-8 text-gray-400 col-span-3">
+                  <i class="fas fa-spinner fa-spin text-xl mb-2"></i>
+                  <p class="text-sm">加载方案列表...</p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 第二级：方案详情 + 智能体列表 ── */}
+            <div id="pm-view-detail" class="hidden">
+              {/* 方案头部信息 */}
+              <div class="p-5 bg-gradient-to-r from-teal-50 to-cyan-50 border-b">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div id="pm-detail-icon" class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"></div>
+                    <div>
+                      <div class="flex items-center space-x-2">
+                        <h4 id="pm-detail-name" class="text-lg font-bold text-gray-800"></h4>
+                        <span id="pm-detail-badge" class="hidden text-[10px] px-2 py-0.5 bg-teal-500 text-white rounded-full font-bold"><i class="fas fa-star mr-0.5"></i>默认</span>
+                      </div>
+                      <p id="pm-detail-desc" class="text-xs text-gray-500 mt-0.5 max-w-lg"></p>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <button onclick="pmBackToProfiles()" class="px-3 py-1.5 bg-white text-gray-600 rounded-lg hover:bg-gray-50 transition text-xs border border-gray-200">
+                      <i class="fas fa-arrow-left mr-1"></i>返回
+                    </button>
+                  </div>
+                </div>
+                {/* 统计数字 */}
+                <div class="flex items-center space-x-5 mt-3 pt-3 border-t border-teal-100/50">
+                  <div class="flex items-center space-x-1.5 text-xs">
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                    <span class="text-gray-500">外环</span>
+                    <span id="pm-stat-outer" class="font-bold text-gray-800">0</span>
+                  </div>
+                  <div class="flex items-center space-x-1.5 text-xs">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                    <span class="text-gray-500">中环</span>
+                    <span id="pm-stat-inner" class="font-bold text-gray-800">0</span>
+                  </div>
+                  <div class="flex items-center space-x-1.5 text-xs">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span class="text-gray-500">启用</span>
+                    <span id="pm-stat-enabled" class="font-bold text-gray-800">0</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tab 切换 */}
+              <div class="px-5 pt-3 pb-2 border-b flex items-center space-x-2">
+                <button onclick="pmSwitchTab('outer')" class="pm-tab-btn active" data-tab="outer">
+                  <i class="fas fa-funnel-dollar mr-1"></i>外环漏斗 (<span id="pm-tab-outer-count">0</span>)
+                </button>
+                <button onclick="pmSwitchTab('inner')" class="pm-tab-btn" data-tab="inner">
+                  <i class="fas fa-filter mr-1"></i>中环筛子 (<span id="pm-tab-inner-count">0</span>)
+                </button>
+              </div>
+
+              {/* 智能体列表 */}
+              <div class="p-5">
+                <div id="pm-agents-list" class="space-y-2">
+                  <p class="text-center text-gray-400 py-6 text-sm">加载中...</p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 第三级：编辑智能体 ── */}
+            <div id="pm-view-edit-agent" class="hidden">
+              <div class="p-4 bg-gray-50 border-b flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <button onclick="pmBackToDetail()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-arrow-left"></i>
+                  </button>
+                  <h4 id="pm-edit-agent-title" class="font-semibold text-gray-800 text-sm">
+                    <i class="fas fa-edit mr-1.5 text-teal-500"></i>编辑智能体
+                  </h4>
+                </div>
+              </div>
+              <div class="p-5">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">智能体名称 <span class="text-red-400">*</span></label>
+                    <input id="pm-agent-name" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">评估维度</label>
+                    <input id="pm-agent-dimension" type="text" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">环型</label>
+                    <select id="pm-agent-ring" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
+                      <option value="outer">外环漏斗（一票否决）</option>
+                      <option value="inner">中环筛子（加权评分）</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">适用行业</label>
+                    <select id="pm-agent-industry" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300">
+                      <option value="all">全行业通用</option>
+                      <option value="catering">餐饮</option>
+                      <option value="retail">零售</option>
+                      <option value="service">生活服务</option>
+                      <option value="ecommerce">电商</option>
+                      <option value="education">教育培训</option>
+                      <option value="douyin-ecommerce">抖音投流</option>
+                      <option value="light-asset">文娱轻资产</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">通过阈值 (0-100)</label>
+                    <input id="pm-agent-threshold" type="number" min="0" max="100" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">权重 (%，仅中环有效)</label>
+                    <input id="pm-agent-weight" type="number" min="0" max="100" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">图标 (FontAwesome)</label>
+                    <input id="pm-agent-icon" type="text" placeholder="fas fa-robot" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-300" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">图标颜色</label>
+                    <input id="pm-agent-iconcolor" type="color" class="w-full h-10 rounded-lg border border-gray-200 cursor-pointer" />
+                  </div>
+                </div>
+                <div class="flex justify-end mt-5 pt-4 border-t space-x-3">
+                  <button onclick="pmBackToDetail()" class="px-4 py-2 bg-white text-gray-600 rounded-lg hover:bg-gray-50 text-sm border border-gray-200">取消</button>
+                  <button onclick="pmSaveAgent()" class="btn-primary text-sm"><i class="fas fa-save mr-1"></i>保存</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

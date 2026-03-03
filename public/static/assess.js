@@ -1055,7 +1055,7 @@ function resetEvaluation() { location.reload(); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 document.addEventListener('keydown', e => {
-  if (e.key==='Escape') { closeDetailModal(); closeReasoningPopup(); closeImprovementPopup(); }
+  if (e.key==='Escape') { closeDetailModal(); closeReasoningPopup(); closeImprovementPopup(); closeProfileManager(); }
 });
 
 // URL ?deal= 参数预选
@@ -1077,20 +1077,267 @@ function checkUrlParams() {
 }
 
 // ==========================================================
-// 编辑方案 — 始终跳到方案仓库列表（不带 profile 参数）
+// 编辑方案 — 弹窗式方案管理中心（三级导航）
+// 第一级：方案列表 → 第二级：方案详情（智能体列表）→ 第三级：编辑智能体
 // ==========================================================
-function goAgentsManage(event) {
-  if (event) event.preventDefault();
-  window.location.href = '/agents';
-  return false;
+let pmCurrentProfileId = null; // 当前在弹窗中查看的方案ID
+let pmCurrentTab = 'outer';    // 当前智能体Tab
+let pmEditingAgentId = null;   // 当前编辑的智能体ID
+
+const PM_INDUSTRY_MAP = { all:'全行业', catering:'餐饮', retail:'零售', service:'服务', ecommerce:'电商', education:'教育', 'douyin-ecommerce':'抖音投流', 'light-asset':'轻资产' };
+
+function openProfileManagerModal() {
+  pmCurrentProfileId = null;
+  pmCurrentTab = 'outer';
+  pmEditingAgentId = null;
+  // 显示弹窗
+  document.getElementById('profile-manager-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  // 确保显示的是方案列表视图
+  pmShowProfilesView();
+  pmRenderProfilesGrid();
 }
 
-// 链接始终指向 /agents（方案仓库列表），不附带 profile 参数
+function closeProfileManager() {
+  const modal = document.getElementById('profile-manager-modal');
+  if (modal) modal.classList.add('hidden');
+  document.body.style.overflow = '';
+  // 关闭后刷新评估页的方案选择器
+  loadProfiles();
+}
+
+// --- 视图切换 ---
+function pmShowProfilesView() {
+  document.getElementById('pm-view-profiles').classList.remove('hidden');
+  document.getElementById('pm-view-detail').classList.add('hidden');
+  document.getElementById('pm-view-edit-agent').classList.add('hidden');
+  document.getElementById('pm-breadcrumb').classList.add('hidden');
+  document.getElementById('pm-title').textContent = '我的评估方案';
+  document.getElementById('pm-subtitle').textContent = '选择方案 · 管理智能体配置';
+}
+
+function pmShowDetailView(profileId) {
+  pmCurrentProfileId = profileId;
+  const profile = allProfiles.find(p => p.id === profileId);
+  if (!profile) { showToast('方案不存在', 'error'); return; }
+
+  document.getElementById('pm-view-profiles').classList.add('hidden');
+  document.getElementById('pm-view-detail').classList.remove('hidden');
+  document.getElementById('pm-view-edit-agent').classList.add('hidden');
+
+  // 面包屑
+  document.getElementById('pm-breadcrumb').classList.remove('hidden');
+  document.getElementById('pm-breadcrumb-name').textContent = profile.name;
+  document.getElementById('pm-title').textContent = '方案详情';
+  document.getElementById('pm-subtitle').textContent = profile.name + ' · 智能体配置';
+
+  // 填充头部
+  document.getElementById('pm-detail-icon').style.background = (profile.icon_color || '#5DC4B3') + '20';
+  document.getElementById('pm-detail-icon').innerHTML = '<i class="' + (profile.icon || 'fas fa-robot') + ' text-xl" style="color:' + (profile.icon_color || '#5DC4B3') + '"></i>';
+  document.getElementById('pm-detail-name').textContent = profile.name;
+  document.getElementById('pm-detail-desc').textContent = profile.description || '暂无描述';
+  const badge = document.getElementById('pm-detail-badge');
+  if (profile.is_default) badge.classList.remove('hidden');
+  else badge.classList.add('hidden');
+
+  // 统计
+  const outerCount = profile.agents.filter(a => a.ring_type === 'outer').length;
+  const innerCount = profile.agents.filter(a => a.ring_type === 'inner').length;
+  const enabledCount = profile.agents.filter(a => a.enabled !== false).length;
+  document.getElementById('pm-stat-outer').textContent = outerCount;
+  document.getElementById('pm-stat-inner').textContent = innerCount;
+  document.getElementById('pm-stat-enabled').textContent = enabledCount;
+  document.getElementById('pm-tab-outer-count').textContent = outerCount;
+  document.getElementById('pm-tab-inner-count').textContent = innerCount;
+
+  // Tab 初始化
+  pmCurrentTab = 'outer';
+  document.querySelectorAll('.pm-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === 'outer');
+  });
+  pmRenderAgentsList();
+}
+
+function pmShowEditAgentView(agentId) {
+  const profile = allProfiles.find(p => p.id === pmCurrentProfileId);
+  if (!profile) return;
+  const agent = profile.agents.find(a => a.id === agentId);
+  if (!agent) { showToast('找不到该智能体', 'error'); return; }
+
+  pmEditingAgentId = agentId;
+  document.getElementById('pm-view-profiles').classList.add('hidden');
+  document.getElementById('pm-view-detail').classList.add('hidden');
+  document.getElementById('pm-view-edit-agent').classList.remove('hidden');
+
+  // 面包屑更新
+  document.getElementById('pm-title').textContent = '编辑智能体';
+  document.getElementById('pm-subtitle').textContent = agent.name;
+  document.getElementById('pm-edit-agent-title').innerHTML = '<i class="fas fa-edit mr-1.5 text-teal-500"></i>编辑智能体 — ' + agent.name;
+
+  // 填充表单
+  document.getElementById('pm-agent-name').value = agent.name || '';
+  document.getElementById('pm-agent-dimension').value = agent.dimension || '';
+  document.getElementById('pm-agent-ring').value = agent.ring_type || 'outer';
+  document.getElementById('pm-agent-industry').value = agent.industry || 'all';
+  document.getElementById('pm-agent-threshold').value = agent.pass_threshold || 50;
+  document.getElementById('pm-agent-weight').value = agent.weight || 0;
+  document.getElementById('pm-agent-icon').value = agent.icon || 'fas fa-robot';
+  document.getElementById('pm-agent-iconcolor').value = agent.icon_color || '#5DC4B3';
+}
+
+function pmBackToProfiles() {
+  pmCurrentProfileId = null;
+  pmShowProfilesView();
+  pmRenderProfilesGrid();
+}
+
+function pmBackToDetail() {
+  if (pmCurrentProfileId) {
+    pmShowDetailView(pmCurrentProfileId);
+  } else {
+    pmBackToProfiles();
+  }
+}
+
+function pmSwitchTab(tab) {
+  pmCurrentTab = tab;
+  document.querySelectorAll('.pm-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  pmRenderAgentsList();
+}
+
+// --- 渲染方案列表 ---
+function pmRenderProfilesGrid() {
+  const grid = document.getElementById('pm-profiles-grid');
+  if (!allProfiles.length) {
+    grid.innerHTML = '<div class="text-center py-10 text-gray-400 col-span-3"><i class="fas fa-inbox text-3xl mb-2"></i><p class="text-sm">暂无评估方案</p></div>';
+    return;
+  }
+
+  grid.innerHTML = allProfiles.map(p => {
+    const outer = p.agents.filter(a => a.ring_type === 'outer').length;
+    const inner = p.agents.filter(a => a.ring_type === 'inner').length;
+    const enabled = p.agents.filter(a => a.enabled !== false).length;
+    const isActive = p.id === activeProfileId;
+    return '<div class="pm-profile-card' + (isActive ? ' ring-2 ring-teal-300 border-teal-400' : '') + '" onclick="pmShowDetailView(\'' + p.id + '\')">' +
+      (p.is_default ? '<div class="pm-default-badge"><i class="fas fa-star mr-0.5"></i>默认</div>' : '') +
+      '<div class="flex items-center space-x-3 mb-3">' +
+      '<div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:' + (p.icon_color || '#5DC4B3') + '20">' +
+      '<i class="' + (p.icon || 'fas fa-robot') + ' text-lg" style="color:' + (p.icon_color || '#5DC4B3') + '"></i></div>' +
+      '<div class="flex-1 min-w-0">' +
+      '<h4 class="font-semibold text-sm text-gray-800 truncate">' + p.name + '</h4>' +
+      '<p class="text-[10px] text-gray-400 line-clamp-1">' + (p.description || '暂无描述') + '</p></div>' +
+      '<i class="fas fa-chevron-right text-gray-300 text-sm flex-shrink-0"></i></div>' +
+      '<div class="grid grid-cols-3 gap-2 text-center">' +
+      '<div class="bg-red-50 rounded-lg py-1.5"><p class="text-sm font-bold text-red-600">' + outer + '</p><p class="text-[9px] text-gray-500">外环</p></div>' +
+      '<div class="bg-blue-50 rounded-lg py-1.5"><p class="text-sm font-bold text-blue-600">' + inner + '</p><p class="text-[9px] text-gray-500">中环</p></div>' +
+      '<div class="bg-emerald-50 rounded-lg py-1.5"><p class="text-sm font-bold text-emerald-600">' + enabled + '</p><p class="text-[9px] text-gray-500">启用</p></div>' +
+      '</div></div>';
+  }).join('');
+}
+
+// --- 渲染智能体列表 ---
+function pmRenderAgentsList() {
+  const profile = allProfiles.find(p => p.id === pmCurrentProfileId);
+  if (!profile) return;
+
+  const agents = profile.agents.filter(a => a.ring_type === pmCurrentTab);
+  const listEl = document.getElementById('pm-agents-list');
+
+  if (!agents.length) {
+    listEl.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-2xl mb-2"></i><p class="text-sm">暂无' + (pmCurrentTab === 'outer' ? '外环漏斗' : '中环筛子') + '智能体</p></div>';
+    return;
+  }
+
+  listEl.innerHTML = agents.map(agent => {
+    const isEnabled = agent.enabled !== false;
+    const industryLabel = PM_INDUSTRY_MAP[agent.industry] || agent.industry;
+    const isTrack = agent.industry !== 'all';
+
+    return '<div class="border border-gray-100 rounded-lg overflow-hidden hover:border-gray-200 transition">' +
+      '<div class="flex items-center justify-between p-3">' +
+      // 左侧：智能体信息
+      '<div class="flex items-center space-x-3 flex-1 min-w-0 cursor-pointer" onclick="pmShowEditAgentView(\'' + agent.id + '\')">' +
+      '<div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + agent.icon_color + '20">' +
+      '<i class="' + agent.icon + ' text-sm" style="color:' + agent.icon_color + '"></i></div>' +
+      '<div class="flex-1 min-w-0">' +
+      '<div class="flex items-center space-x-2">' +
+      '<h4 class="font-medium text-sm text-gray-800 truncate">' + agent.name + '</h4>' +
+      (isTrack ? '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700 flex-shrink-0">' + industryLabel + '</span>' : '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 flex-shrink-0">通用</span>') +
+      '</div>' +
+      '<p class="text-[11px] text-gray-400 truncate">' + agent.dimension + ' · 阈值 ' + agent.pass_threshold +
+      (pmCurrentTab === 'inner' ? ' · 权重 ' + agent.weight + '%' : '') + '</p></div></div>' +
+      // 右侧：操作
+      '<div class="flex items-center space-x-3 flex-shrink-0">' +
+      '<label class="pm-toggle" onclick="event.stopPropagation()"><input type="checkbox" ' + (isEnabled ? 'checked' : '') + ' onchange="pmToggleAgent(\'' + agent.id + '\', this.checked)"><span class="pm-toggle-slider"></span></label>' +
+      '<button onclick="pmShowEditAgentView(\'' + agent.id + '\')" class="text-gray-400 hover:text-teal-500 transition" title="编辑"><i class="fas fa-pen text-xs"></i></button>' +
+      '<i class="fas fa-chevron-right text-gray-300 text-xs"></i>' +
+      '</div></div></div>';
+  }).join('');
+}
+
+// --- 智能体操作 ---
+async function pmToggleAgent(agentId, enabled) {
+  try {
+    await apiCall('/api/agents/profiles/' + pmCurrentProfileId + '/agents/' + agentId, {
+      method: 'PATCH', body: JSON.stringify({ enabled })
+    });
+    // 更新本地数据
+    const profile = allProfiles.find(p => p.id === pmCurrentProfileId);
+    const agent = profile?.agents.find(a => a.id === agentId);
+    if (agent) agent.enabled = enabled;
+    // 刷新统计
+    const outerCount = profile.agents.filter(a => a.ring_type === 'outer').length;
+    const innerCount = profile.agents.filter(a => a.ring_type === 'inner').length;
+    const enabledCount = profile.agents.filter(a => a.enabled !== false).length;
+    document.getElementById('pm-stat-outer').textContent = outerCount;
+    document.getElementById('pm-stat-inner').textContent = innerCount;
+    document.getElementById('pm-stat-enabled').textContent = enabledCount;
+    showToast(enabled ? '已启用' : '已禁用', 'success');
+  } catch(e) { showToast('操作失败: ' + e.message, 'error'); }
+}
+
+async function pmSaveAgent() {
+  if (!pmEditingAgentId || !pmCurrentProfileId) return;
+  const name = document.getElementById('pm-agent-name').value.trim();
+  if (!name) { showToast('智能体名称不能为空', 'error'); return; }
+
+  const agentData = {
+    name,
+    dimension: document.getElementById('pm-agent-dimension').value.trim() || name,
+    ring_type: document.getElementById('pm-agent-ring').value,
+    industry: document.getElementById('pm-agent-industry').value,
+    pass_threshold: parseInt(document.getElementById('pm-agent-threshold').value) || 50,
+    weight: parseInt(document.getElementById('pm-agent-weight').value) || 0,
+    icon: document.getElementById('pm-agent-icon').value.trim() || 'fas fa-robot',
+    icon_color: document.getElementById('pm-agent-iconcolor').value || '#5DC4B3',
+    enabled: true
+  };
+
+  try {
+    await apiCall('/api/agents/profiles/' + pmCurrentProfileId + '/agents/' + pmEditingAgentId, {
+      method: 'PUT', body: JSON.stringify(agentData)
+    });
+    showToast('智能体已保存', 'success');
+    // 刷新方案数据
+    const data = await apiCall('/api/agents/profiles');
+    allProfiles = data.data || [];
+    // 回到方案详情
+    pmShowDetailView(pmCurrentProfileId);
+  } catch(e) { showToast('保存失败: ' + e.message, 'error'); }
+}
+
+// 链接始终指向弹窗模式，不再需要
 function updateAgentsLinks() {
-  const link1 = document.getElementById('link-agents-manage');
-  const link2 = document.getElementById('link-profile-manage');
-  if (link1) link1.href = '/agents';
-  if (link2) link2.href = '/agents';
+  // 不再需要更新链接，因为按钮已改为 onclick
+}
+
+// 兼容旧函数
+function goAgentsManage(event) {
+  if (event) event.preventDefault();
+  openProfileManagerModal();
+  return false;
 }
 
 // 初始化
